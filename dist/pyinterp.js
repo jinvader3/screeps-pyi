@@ -109,6 +109,12 @@ class PyInterp {
       }
     }
 
+    if (cobj.module === 'os' && cobj.method.val === 'debug') {
+      if (args.length > 0) {
+        console.log('DEBUG', args[0].val);
+      }
+    }
+
     return { type: 'none' }
   }
 
