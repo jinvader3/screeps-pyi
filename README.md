@@ -1,0 +1,1 @@
+This repo is work on a simple proof of concept Screeps bot that utilizes interpreted Python 3.x bytecode to produce a persistent threaded model across game ticks. The state of each thread is intended to be stored in memory across ticks.
