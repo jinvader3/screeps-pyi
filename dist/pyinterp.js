@@ -131,6 +131,23 @@ class PyInterp {
     return some_alive;
   }
 
+  serialize () {
+    return JSON.stringify({
+      threads: this.threads,
+      globals: this.globals,
+      code_objs: this.code_objs,
+      last_thread_id: this.last_thread_id,
+    });
+  }
+
+  deserialize (data) {
+    const save = JSON.parse(data);
+    this.threads = save.threads;
+    this.globals = save.globals;
+    this.code_objs = save.code_objs;
+    this.last_thread_id = save.last_thread_id;
+  }
+
   execute_single (thread_ndx) {
     const tstate = this.threads[thread_ndx];
 
@@ -273,10 +290,14 @@ class PyInterp {
 
 pyi = new PyInterp(prog);
 
-while (pyi.execute_all()) {
+for (let x = 0; x < 30 && pyi.execute_all(); ++x) {
 }
 
-console.log('globals', pyi.globals.apple);
+pyi.deserialize(pyi.serialize());
+
+for (let x = 0; x < 30 && pyi.execute_all(); ++x) {
+  console.log('AFTER DESERIALIZE');
+}
 
 module.exports.PyInterp = PyInterp;
 module.exports.prog = prog;
