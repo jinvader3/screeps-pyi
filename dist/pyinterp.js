@@ -163,12 +163,12 @@ class PyInterp {
             break;
           case 'get_creep_ids':
             return this.new_object({ type: 'list', data: [
-              { type: 'str', val: '3f12e2k' },
-              //{ type: 'str', val: 'pq2n1m2' },
-              //{ type: 'str', val: 'uey2i23' },
-              //{ type: 'str', val: '238nb2n' },
-              //{ type: 'str', val: '192wi2u' },
-              //{ type: 'str', val: 'hfdb982' },
+              this.new_object({ type: 'str', val: '3f12e2k' }),
+              //this.new_object({ type: 'str', val: 'pq2n1m2' }),
+              //this.new_object({ type: 'str', val: 'uey2i23' }),
+              //this.new_object({ type: 'str', val: '238nb2n' }),
+              //this.new_object({ type: 'str', val: '192wi2u' }),
+              //this.new_object({ type: 'str', val: 'hfdb982' }),
             ]});
             break;
           case 'creep_get_room_id':
@@ -177,8 +177,8 @@ class PyInterp {
             });
           case 'get_source_ids':
             return this.new_object({ type: 'list', data: [
-              { type: 'str', val: 'src8392' },
-              { type: 'str', val: 'src0020' },
+              this.new_object({ type: 'str', val: 'src8392' }),
+              this.new_object({ type: 'str', val: 'src0020' }),
             ]})
           case 'get_controller_id':
             return this.new_object({ 
@@ -196,6 +196,16 @@ class PyInterp {
             break;
           case 'creep_memory_read_key':
             break;
+          case 'creep_harvest':
+            return this.new_object({
+              type: 'bool', val: false,
+            });
+          case 'creep_upgrade':
+            return this.new_object({
+              type: 'bool', val: false,
+            });
+          case 'creep_move_to':
+            break;
           default:
             console.log(frame.code.opcodes[frame.ip + 1]);
             throw new Error('not implemented');
@@ -203,12 +213,6 @@ class PyInterp {
         break;
       default:
         throw new Error('not implemented');
-    }
-
-    if (cobj.module === 'os' && cobj.method.val === 'debug') {
-      if (args.length > 0) {
-        console.log('DEBUG', args[0].val);
-      }
     }
 
     return { type: 'none' }
@@ -235,7 +239,16 @@ class PyInterp {
         let item = stack[ndx];
         if (objects[item.__id] === undefined) {
           objects[item.__id] = item;
+          if (item.type === 'iter') {
+            // For iterators also package the object it references.
+            let sobj = item.obj;
+            if (objects[sobj.__id] === undefined) {
+              objects[sobj.__id] = sobj;
+            }
+            item.obj = sobj.__id;
+          }
         }
+
         stack[ndx] = item.__id;
       }
      }
@@ -243,24 +256,30 @@ class PyInterp {
     // Go through and wipe the stacks by deduplicating objects.
     for (let tid in this.threads) {
       let state = this.threads[tid];
-      console.log('THREAD');
+      console.log('THREAD', tid);
       for (let frame of state.frames) {
-        console.log('frame-stack');
+        console.log('frame-stack', frame.stack);
         dedup_objects(frame.stack);
+        dedup_objects(frame.locals);
       }
-      console.log('current-frame-stack');
-      dedup_objects(state.frame.stack);
+      console.log('current-frame-stack', state.frame.stack);
+      dedup_objects(state.frame.stack); 
+      dedup_objects(state.frame.locals);
     }
 
-    console.log(JSON.stringify({
+    dedup_objects(this.globals);
+
+    for (let ndx in objects) {
+      console.log(ndx, objects[ndx]);
+    }
+
+    return JSON.stringify({
       objects: objects,
       threads: this.threads,
       globals: this.globals,
       code_objs: this.code_objs,
       last_thread_id: this.last_thread_id,
-    }).length);
-
-    throw new Error('WIP');
+    });
   }
 
   deserialize (data) {
@@ -312,17 +331,23 @@ class PyInterp {
       throw new Error('not implemented');
     }
 
-    const res = tos.iter.next()
-
-    if (res.done) {
+    if (tos.iterndx === tos.obj.data.length) {
       frame.stack.pop();
-      // Subtract one because it will get incremented by 
-      // one when we exit this method and return to our caller.
-      frame.ip += (arg / 2)
-      return
+      frame.ip += arg / 2;
+      return;
     }
 
-    frame.stack.push(res.value);
+    const entry = tos.obj.data[tos.iterndx++];
+    
+    switch (tos.obj.type) {
+      case 'map':
+        frame.stack.push(entry[1]);
+        break;
+      case 'list':
+        frame.stack.push(entry);
+        break;
+      default: throw new Error('not implemented');
+    }
   }
 
   opcode_get_iter (arg, thread_id, frame) {
@@ -332,12 +357,7 @@ class PyInterp {
     switch (tos.type) {
       case 'map':
       case 'list':
-        tos[Symbol.iterator] = function *() {
-          for (let x of this.data) {
-            yield x;
-          }
-        };
-        obj.iter = tos[Symbol.iterator]()
+        obj.iterndx = 0;
         frame.stack.push(obj);
         break;
       default:
@@ -356,6 +376,24 @@ class PyInterp {
     console.log('store_fast', name, frame.stack);
     frame.locals[name] = frame.stack.pop(); 
     console.log(frame.locals);
+  }
+
+  opcode_binary_subscr (arg, thread_id, frame) {
+    const tos = frame.stack.pop();
+    const tos1 = frame.stack.pop();
+
+    switch (tos1.type) {
+      case 'list':
+        switch (tos.type) {
+          case 'int':
+            frame.stack.push(this.new_object(tos1.data[tos.val]));
+            break;
+          default: throw new Error('not implemented');
+        }
+        break;
+      default:
+        throw new Error('not implemented');
+    } 
   }
 
   opcode_load_global (arg, thread_id, frame) {
@@ -456,6 +494,26 @@ class PyInterp {
     } else {
       frame.stack.push(this.new_object({
         type: 'bool', val: false
+      }));
+    }
+  }
+
+  opcode_is_op (arg, thread_id, frame) {
+    const invert = arg === 1;
+    const tos = frame.stack.pop();
+    const tos1 = frame.stack.pop();
+    
+    if (tos.type !== 'bool' || tos1.type !== 'bool') {
+      throw new Error(`not implemented [${tos.type} with ${tos1.type}]`);
+    }
+
+    if (tos.val === tos1.val) {
+      frame.stack.push(this.new_object({
+        type: 'bool', val: true,
+      }));
+    } else {
+      frame.stack.push(this.new_object({
+        type: 'bool', val: false,
       }));
     }
   }
@@ -677,8 +735,11 @@ class PyInterp {
         this.opcode_compare_op(arg, thread_ndx, frame);
         break;
       case 'BINARY_SUBSCR':
-        this.serialize();
-        throw new Error('TESTING SERIALIZATION');
+        this.opcode_binary_subscr(arg, thread_ndx, frame);
+        break;
+      case 'IS_OP':
+        this.opcode_is_op(arg, thread_ndx, frame);
+        break;
       default:
         throw new Error(`unknown opcode ${opcode}`);
     }

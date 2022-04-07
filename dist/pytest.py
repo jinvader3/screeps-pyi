@@ -32,7 +32,7 @@ def main():
       if creep_id not in spawned:
         spawned[creep_id] = True
         os.spawn_thread(creep_thread, creep_id)
-    # Block the thread until the next tick.
+      # Block the thread until the next tick.
     os.next_tick()
 
 main()
