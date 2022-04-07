@@ -18,8 +18,8 @@ def creep_thread(creep_id):
       if os.creep_upgrade(controller_id) is False:
         os.creep_move_to(controller_id)
     else:
-      if os.creep_harvest(sources_ids[0]) is False:
-        os.creep_move_to(sources_ids[0])
+      if os.creep_harvest(source_ids[0]) is False:
+        os.creep_move_to(source_ids[0])
 
     os.next_tick()
 
@@ -30,7 +30,7 @@ def main():
     creep_ids = os.get_creep_ids()
     for creep_id in creep_ids:
       if creep_id not in spawned:
-        spawned[creep_id] = 'apple'
+        spawned[creep_id] = True
         os.spawn_thread(creep_thread, creep_id)
     # Block the thread until the next tick.
     os.next_tick()

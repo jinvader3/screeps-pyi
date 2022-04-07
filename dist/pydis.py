@@ -52,6 +52,11 @@ def compile_into_instructions(co):
   jmod['co_names'] = to_list(co.co_names)
   jmod['co_varnames'] = to_list(co.co_varnames)  
   jmod['co_consts'] = to_list(co.co_consts)
+  jmod['co_argcount'] = co.co_argcount
+
+  #for k in dir(co):
+  #  print(k)
+  #exit()
 
   jmod['opcodes'] = []
   for i in dis.get_instructions(co):

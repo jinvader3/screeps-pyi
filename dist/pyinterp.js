@@ -34,6 +34,9 @@ class PyInterp {
     if (typeof obj !== 'object') {
       throw new Error('obj must be an object');
     }
+    if (obj.__id !== undefined) {
+      return obj;
+    }
     const id = this.new_object_id();
     obj.__id = id;
     return obj;
@@ -123,7 +126,7 @@ class PyInterp {
     };
   }
 
-  internal_method_call (thread_id, args, cobj, base) {
+  internal_method_call (thread_id, args, cobj, base, frame) {
     const state = this.threads[thread_id];
 
     console.log('INTERNAL_METHOD_CALL')
@@ -145,7 +148,12 @@ class PyInterp {
           case 'spawn_thread':
             const qname = args[0].val[0];
             const code = this.get_code_object_by_id(args[0].val[1].code);
-            //this.new_thread(code, {});
+            const ntid = this.new_thread(code, {});
+            for (let x = 0; x < this.threads[ntid].frame.code.co_argcount; ++x) {
+              let argname = this.threads[ntid].frame.code.co_varnames[x];
+              console.log('loading spawn_thread function argument', argname, args[x+1]);
+              this.threads[ntid].frame.locals[argname.val] = args[x];
+            }
             break;
           case 'debug':
             console.log('DEBUG', args[0].val);
@@ -154,16 +162,42 @@ class PyInterp {
             state.next_tick = true;
             break;
           case 'get_creep_ids':
-            return { type: 'list', data: [
+            return this.new_object({ type: 'list', data: [
               { type: 'str', val: '3f12e2k' },
-              { type: 'str', val: 'pq2n1m2' },
-              { type: 'str', val: 'uey2i23' },
-              { type: 'str', val: '238nb2n' },
-              { type: 'str', val: '192wi2u' },
-              { type: 'str', val: 'hfdb982' },
-            ]}
+              //{ type: 'str', val: 'pq2n1m2' },
+              //{ type: 'str', val: 'uey2i23' },
+              //{ type: 'str', val: '238nb2n' },
+              //{ type: 'str', val: '192wi2u' },
+              //{ type: 'str', val: 'hfdb982' },
+            ]});
+            break;
+          case 'creep_get_room_id':
+            return this.new_object({
+              type: 'str', val: 'W34S23'
+            });
+          case 'get_source_ids':
+            return this.new_object({ type: 'list', data: [
+              { type: 'str', val: 'src8392' },
+              { type: 'str', val: 'src0020' },
+            ]})
+          case 'get_controller_id':
+            return this.new_object({ 
+              type: 'str', val: 'ctrl3922'
+            });
+          case 'creep_energy_used_cap':
+            return this.new_object({
+              type: 'int', val: 0,
+            });
+          case 'creep_energy_free_cap':
+            return this.new_object({
+              type: 'int', val: 0,
+            });          
+          case 'creep_memory_write_key':
+            break;
+          case 'creep_memory_read_key':
             break;
           default:
+            console.log(frame.code.opcodes[frame.ip + 1]);
             throw new Error('not implemented');
         }
         break;
@@ -194,13 +228,39 @@ class PyInterp {
   }
 
   serialize () {
-    return JSON.stringify({
-      objects: this.objects,
+    const objects = {};
+
+    function dedup_objects(stack) {
+      for (let ndx in stack) {
+        let item = stack[ndx];
+        if (objects[item.__id] === undefined) {
+          objects[item.__id] = item;
+        }
+        stack[ndx] = item.__id;
+      }
+     }
+
+    // Go through and wipe the stacks by deduplicating objects.
+    for (let tid in this.threads) {
+      let state = this.threads[tid];
+      console.log('THREAD');
+      for (let frame of state.frames) {
+        console.log('frame-stack');
+        dedup_objects(frame.stack);
+      }
+      console.log('current-frame-stack');
+      dedup_objects(state.frame.stack);
+    }
+
+    console.log(JSON.stringify({
+      objects: objects,
       threads: this.threads,
       globals: this.globals,
       code_objs: this.code_objs,
       last_thread_id: this.last_thread_id,
-    });
+    }).length);
+
+    throw new Error('WIP');
   }
 
   deserialize (data) {
@@ -288,20 +348,25 @@ class PyInterp {
   opcode_load_fast (arg, thread_id, frame) {
     const name = frame.code.co_varnames[arg].val;
     console.log(`   name=${name}`);
-    frame.stack.push(frame.locals[name]);
+    frame.stack.push(this.new_object(frame.locals[name]));
   }
 
   opcode_store_fast (arg, thread_id, frame) {
     const name = frame.code.co_varnames[arg].val;
     console.log('store_fast', name, frame.stack);
     frame.locals[name] = frame.stack.pop(); 
+    console.log(frame.locals);
   }
 
   opcode_load_global (arg, thread_id, frame) {
     const name = frame.code.co_names[arg].val;
     console.log(`  name=${name}`);
     if (frame.locals[name] !== undefined) {
-      frame.stack.push(frame.locals[name]);
+      frame.stack.push(this.new_object(frame.locals[name]));
+      return;
+    }
+    if (this.globals[name] === undefined) {
+      throw new Error(`load_global failed because ${name} does not exist as local or global`);
     }
     frame.stack.push(this.globals[name]);
   }
@@ -363,6 +428,36 @@ class PyInterp {
       return;
     }
     map.data[ndx] = val;
+  }
+
+  opcode_compare_op (arg, thread_id, frame) {
+    // <
+    // <=
+    // ==
+    // !=
+    // >
+    // >=
+  
+    const fm = {
+      2: this.objs_equal, 
+    };
+    
+    if (fm[arg] === undefined) {
+      throw new Error('not implemented');
+    }
+
+    const a = frame.stack.pop();
+    const b = frame.stack.pop();
+
+    if (fm[arg](a, b)) {
+      frame.stack.push(this.new_object({
+        type: 'bool', val: true
+      }));
+    } else {
+      frame.stack.push(this.new_object({
+        type: 'bool', val: false
+      }));
+    }
   }
 
   opcode_store_subscr (arg, thread_id, frame) {
@@ -440,7 +535,7 @@ class PyInterp {
         this.new_frame(thread_id, ___code, {});
         break;
       case 'internal-function':
-        frame.stack.push(this.internal_method_call(thread_id, args, cobj, null))  
+        frame.stack.push(this.new_object(this.internal_method_call(thread_id, args, cobj, null, frame)))
         break;
       default:
         throw new Error('not implemented');
@@ -481,9 +576,9 @@ class PyInterp {
         const fromlist = stack.pop();
         const level = stack.pop();
         console.log('import_name', 'name', co_names[arg], 'fromlist', fromlist, 'level', level)
-        stack.push(this.load_module(
+        stack.push(this.new_object(this.load_module(
           co_names[arg].val, fromlist, level
-        ));
+        )));
         break;
       case 'STORE_NAME':
         locals[co_names[arg].val] = stack[stack.length - 1];
@@ -494,7 +589,7 @@ class PyInterp {
         }
         const qname = stack.pop();
         const code = stack.pop();
-        stack.push({ type: 'func', val: [qname, code] });
+        stack.push(this.new_object({ type: 'func', val: [qname, code] }));
         break;
       case 'LOAD_NAME':
         stack.push(co_names[arg]);
@@ -506,8 +601,8 @@ class PyInterp {
         console.log('stack', stack);
         let obj = stack.pop()
         if (obj.type === 'internal-module') {
-          stack.push({ type: 'none' })
-          stack.push(this.internal_module_load_method(obj.val, co_names[arg]));
+          stack.push(this.new_object({ type: 'none' }))
+          stack.push(this.new_object(this.internal_module_load_method(obj.val, co_names[arg])));
         } else {
           throw new Error('not implemented');
         }
@@ -535,7 +630,7 @@ class PyInterp {
           cobj2 = get_var(cobj.val)
           this.new_frame(thread_ndx, cobj2.val[1].code, {});
         } else if (cobj2.type === 'internal-method') {
-          stack.push(this.internal_method_call(thread_ndx, args2, cobj2, base))
+          stack.push(this.new_object(this.internal_method_call(thread_ndx, args2, cobj2, base, frame)));
         } else {
           throw new Error(`not implemented ${cobj2.type}`);
         }
@@ -578,8 +673,20 @@ class PyInterp {
       case 'FOR_ITER':
         this.opcode_for_iter(arg, thread_ndx, frame);
         break;
+      case 'COMPARE_OP':
+        this.opcode_compare_op(arg, thread_ndx, frame);
+        break;
+      case 'BINARY_SUBSCR':
+        this.serialize();
+        throw new Error('TESTING SERIALIZATION');
       default:
         throw new Error(`unknown opcode ${opcode}`);
+    }
+
+    for (let item of stack) {
+      if (item === undefined) {
+        throw new Error('undefined found on the stack');
+      }
     }
 
     frame.ip++;
@@ -588,11 +695,6 @@ class PyInterp {
 }
 
 pyi = new PyInterp(prog);
-
-while (pyi.execute_all()) {
-}
-
-pyi.deserialize(pyi.serialize());
 
 while (pyi.execute_all()) {
 }
