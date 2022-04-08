@@ -4,7 +4,6 @@ class PyInterp {
   constructor (prog) {
     this.prog = prog;
     this.code_objs = [];
-    this.remap_code_objects();
     // SHARED BETWEEN THREADS
     this.globals = {};
     this.objects = {};
@@ -12,7 +11,10 @@ class PyInterp {
     this.threads = {};
     this.last_thread_id = 0;
     this.last_object_id = 0;
-    this.new_thread(this.prog.data, this.globals);
+    if (prog !== null) {
+      this.remap_code_objects();
+      this.new_thread(this.prog.data, this.globals);
+    }
   }
 
   new_thread (code, scope) {
@@ -20,14 +22,17 @@ class PyInterp {
       frame: null,
       frames: [],
     };
-    const id = this.last_thread_id++;
+    const id = `TID-${this.last_thread_id}`;
+    this.last_thread_id++;
     this.threads[id] = nt;
     this.new_frame(id, code, scope);
     return id;
   }
 
   new_object_id () {
-    return this.last_object_id++;
+    const oid = `OID-${this.last_object_id}`;
+    this.last_object_id++;
+    return oid;
   }
 
   new_object (obj) {
@@ -93,7 +98,8 @@ class PyInterp {
   }
 
   clear_next_tick () {
-    for (let state of this.threads) {
+    for (let tid in this.threads) {
+      const state = this.threads[tid];
       state.next_tick = false;
     }
   }
@@ -129,11 +135,6 @@ class PyInterp {
   internal_method_call (thread_id, args, cobj, base, frame) {
     const state = this.threads[thread_id];
 
-    console.log('INTERNAL_METHOD_CALL')
-    console.log('args', args);
-    console.log('cobj', cobj);
-    console.log('base', base);
-
     switch (cobj.module) {
       case 'builtins':
         switch (cobj.method.val) {
@@ -152,7 +153,7 @@ class PyInterp {
             for (let x = 0; x < this.threads[ntid].frame.code.co_argcount; ++x) {
               let argname = this.threads[ntid].frame.code.co_varnames[x];
               console.log('loading spawn_thread function argument', argname, args[x+1]);
-              this.threads[ntid].frame.locals[argname.val] = args[x];
+              this.threads[ntid].frame.locals[argname.val] = args[x+1];
             }
             break;
           case 'debug':
@@ -231,12 +232,20 @@ class PyInterp {
     return some_alive;
   }
 
+  assert (cond) {
+    if (!cond) {
+      throw new Error('ASSERTION FAILURE');
+    }
+  }
+
   serialize () {
     const objects = {};
+    const self = this;
 
     function dedup_objects(stack) {
       for (let ndx in stack) {
         let item = stack[ndx];
+        self.assert(item.__id !== undefined);
         if (objects[item.__id] === undefined) {
           objects[item.__id] = item;
           if (item.type === 'iter') {
@@ -248,47 +257,76 @@ class PyInterp {
             item.obj = sobj.__id;
           }
         }
-
         stack[ndx] = item.__id;
       }
-     }
+    }
 
     // Go through and wipe the stacks by deduplicating objects.
     for (let tid in this.threads) {
       let state = this.threads[tid];
-      console.log('THREAD', tid);
       for (let frame of state.frames) {
-        console.log('frame-stack', frame.stack);
         dedup_objects(frame.stack);
         dedup_objects(frame.locals);
       }
-      console.log('current-frame-stack', state.frame.stack);
       dedup_objects(state.frame.stack); 
       dedup_objects(state.frame.locals);
     }
+    
+    // On serialization, globals is locals on thread 0, therefore,
+    // it was already serialized. We just need to remember to relink
+    // it on deserialization.
+    //dedup_objects(this.globals);
 
-    dedup_objects(this.globals);
-
-    for (let ndx in objects) {
-      console.log(ndx, objects[ndx]);
-    }
-
-    return JSON.stringify({
+    return {
       objects: objects,
       threads: this.threads,
-      globals: this.globals,
+      globals: null,
       code_objs: this.code_objs,
       last_thread_id: this.last_thread_id,
-    });
+      last_object_id: this.last_object_id,
+    };
   }
 
   deserialize (data) {
-    const save = JSON.parse(data);
-    this.objects = save.objects;
+    const save = data;
+    const objects = save.objects;
+
     this.threads = save.threads;
     this.globals = save.globals;
     this.code_objs = save.code_objs;
     this.last_thread_id = save.last_thread_id;
+    this.last_object_id = save.last_object_id;
+
+    const self = this;
+
+    function dup_objects(stack) {
+      for (let ndx in stack) {
+        const oid = stack[ndx];
+        const obj = objects[oid];
+        self.assert(obj.__id !== undefined);
+        stack[ndx] = obj;
+        if (obj.type === 'iter') {
+          obj.obj = objects[obj.obj];
+        }
+      }
+    }
+
+    for (let tid in this.threads) {
+      const state = this.threads[tid];
+      for (let frame of state.frames) {
+        dup_objects(frame.stack);
+        dup_objects(frame.locals);
+      }
+      dup_objects(state.frame.stack);
+      dup_objects(state.frame.locals);
+    }
+
+    const state = this.threads['TID-0'];
+    if (state.frames.length === 0) {
+      this.globals = state.frame.locals;
+    } else {
+      this.globals = state.frames[0].locals;
+    }
   }
 
   get_var (frame, name) {
@@ -367,13 +405,11 @@ class PyInterp {
 
   opcode_load_fast (arg, thread_id, frame) {
     const name = frame.code.co_varnames[arg].val;
-    console.log(`   name=${name}`);
     frame.stack.push(this.new_object(frame.locals[name]));
   }
 
   opcode_store_fast (arg, thread_id, frame) {
     const name = frame.code.co_varnames[arg].val;
-    console.log('store_fast', name, frame.stack);
     frame.locals[name] = frame.stack.pop(); 
     console.log(frame.locals);
   }
@@ -392,17 +428,13 @@ class PyInterp {
         }
         break;
       default:
-        throw new Error('not implemented');
+        throw new Error(`not implemented ${tos1.type}`);
     } 
   }
 
   opcode_load_global (arg, thread_id, frame) {
     const name = frame.code.co_names[arg].val;
     console.log(`  name=${name}`);
-    if (frame.locals[name] !== undefined) {
-      frame.stack.push(this.new_object(frame.locals[name]));
-      return;
-    }
     if (this.globals[name] === undefined) {
       throw new Error(`load_global failed because ${name} does not exist as local or global`);
     }
@@ -410,13 +442,9 @@ class PyInterp {
   }
 
   opcode_contains_op (arg, thread_id, frame) {
-    if (arg !== 1) { 
-    } else {
-    }
-
     const tos = frame.stack.pop();
     const tos1 = frame.stack.pop();
-    
+ 
     switch (tos.type) {
       case 'map':
         if (this.map_contains_key(tos, tos1)) {
@@ -451,7 +479,7 @@ class PyInterp {
 
   map_index_of_key (map, key) {
     for (let ndx in map.data) {
-      let _key = map.data[ndx];
+      let _key = map.data[ndx][0];
       if (this.objs_equal(_key, key)) {
         return ndx;
       }
@@ -522,10 +550,6 @@ class PyInterp {
     const tos = frame.stack.pop();
     const tos1 = frame.stack.pop();
     const tos2 = frame.stack.pop();
-    console.log('tos', tos);
-    console.log('tos1', tos1);
-    console.log('tos2', tos2);
-    console.log('stack', frame.stack);
     switch (tos1.type) {
       case 'map':
         this.map_set(tos1, tos, tos2);
@@ -554,7 +578,6 @@ class PyInterp {
     switch (tos.type) {
       case 'bool':
         if (tos.val === false) {
-          console.log('WAS FALSE');
           frame.ip = (arg / 2) - 1;
           return;
         }
@@ -565,6 +588,8 @@ class PyInterp {
 
   opcode_call_function (arg, thread_id, frame) {
     let args = [];
+
+    console.log('arg', arg);
 
     for (let x = 0; x < arg; ++x) {
       args.unshift(frame.stack.pop());
@@ -596,7 +621,8 @@ class PyInterp {
         frame.stack.push(this.new_object(this.internal_method_call(thread_id, args, cobj, null, frame)))
         break;
       default:
-        throw new Error('not implemented');
+        console.log('cobj', cobj);
+        throw new Error(`not implemented ${cobj.type}`);
     }
   }
 
@@ -609,7 +635,6 @@ class PyInterp {
 
 
     const frame = tstate.frame;
-    console.log('ip', thread_ndx, frame.ip);
     const code = frame.code;
     const op = code.opcodes[frame.ip];
     const co_consts = code.co_consts;
@@ -624,6 +649,7 @@ class PyInterp {
     for (let x = 0; x < tstate.frames.length; ++x) {
       pad.push('  ');
     }
+    
     console.log(`${thread_ndx}: ${pad.join('')}${opcode}`);
 
     switch (opcode) {
@@ -639,7 +665,8 @@ class PyInterp {
         )));
         break;
       case 'STORE_NAME':
-        locals[co_names[arg].val] = stack[stack.length - 1];
+        console.log(co_names[arg].val);
+        locals[co_names[arg].val] = stack.pop();
         break;
       case 'MAKE_FUNCTION':
         if (arg !== 0) {
@@ -650,13 +677,14 @@ class PyInterp {
         stack.push(this.new_object({ type: 'func', val: [qname, code] }));
         break;
       case 'LOAD_NAME':
-        stack.push(co_names[arg]);
+        console.log(co_names[arg].val);
+        stack.push(this.new_object(locals[co_names[arg].val]));
+        console.log(stack);
         break;
       case 'CALL_FUNCTION':
         this.opcode_call_function(arg, thread_ndx, frame);
         break;
       case 'LOAD_METHOD':
-        console.log('stack', stack);
         let obj = stack.pop()
         if (obj.type === 'internal-module') {
           stack.push(this.new_object({ type: 'none' }))
@@ -677,7 +705,6 @@ class PyInterp {
         }
         break;
       case 'CALL_METHOD':
-        console.log('stack', frame.stack); 
         let args2 = [];
         for (let x = 0; x < arg; ++x) {
           args2.unshift(stack.pop());
@@ -743,24 +770,34 @@ class PyInterp {
       default:
         throw new Error(`unknown opcode ${opcode}`);
     }
+        
+    console.log('globals', this.globals);
 
     for (let item of stack) {
       if (item === undefined) {
         throw new Error('undefined found on the stack');
       }
+      if (item.__id === undefined) {
+        throw new Error('item without __id found on the stack');
+      }
+      console.log(`${thread_ndx}: ${pad.join('')}STACK: ${JSON.stringify(item)}`);
     }
 
     frame.ip++;
     return false;
   }
 }
-
+/*
 pyi = new PyInterp(prog);
 
-while (pyi.execute_all()) {
+while (true) {
+  while (pyi.execute_all()) {
+  }
+
+  console.log('LAST');
+
+  pyi.deserialize(pyi.serialize());
 }
-
-console.log('LAST');
-
+*/
 module.exports.PyInterp = PyInterp;
 module.exports.prog = prog;

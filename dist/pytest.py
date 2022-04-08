@@ -8,18 +8,18 @@ def creep_thread(creep_id):
   while True:
     os.debug('creep loop')
 
-    if os.creep_energy_used_cap() == 0:
+    if os.creep_energy_used_cap(creep_id) == 0:
       os.creep_memory_write_key('mode', 'pull')
     
-    if os.creep_energy_free_cap() == 0:
+    if os.creep_energy_free_cap(creep_id) == 0:
       os.creep_memory_write_key('mode', 'push')
 
-    if os.creep_memory_read_key('mode') == 'push':
-      if os.creep_upgrade(controller_id) is False:
-        os.creep_move_to(controller_id)
+    if os.creep_memory_read_key(creep_id, 'mode') == 'push':
+      if os.creep_upgrade(creep_id, controller_id) is False:
+        os.creep_move_to(creep_id, controller_id)
     else:
-      if os.creep_harvest(source_ids[0]) is False:
-        os.creep_move_to(source_ids[0])
+      if os.creep_harvest(creep_id, source_ids[0]) is False:
+        os.creep_move_to(creep_id, source_ids[0])
 
     os.next_tick()
 
