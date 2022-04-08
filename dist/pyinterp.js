@@ -163,50 +163,95 @@ class PyInterp {
             state.next_tick = true;
             break;
           case 'get_creep_ids':
-            return this.new_object({ type: 'list', data: [
-              this.new_object({ type: 'str', val: '3f12e2k' }),
-              //this.new_object({ type: 'str', val: 'pq2n1m2' }),
-              //this.new_object({ type: 'str', val: 'uey2i23' }),
-              //this.new_object({ type: 'str', val: '238nb2n' }),
-              //this.new_object({ type: 'str', val: '192wi2u' }),
-              //this.new_object({ type: 'str', val: 'hfdb982' }),
-            ]});
+            {
+              const out = [];
+              for (let cname in Game.creeps) {
+                out.push(this.new_object({
+                  type: 'str', val: cname,
+                }));
+              }
+              return this.new_object({ type: 'list', data: out });
+            }
             break;
           case 'creep_get_room_id':
             return this.new_object({
-              type: 'str', val: 'W34S23'
+              type: 'str', val: 'W1N2'
             });
           case 'get_source_ids':
-            return this.new_object({ type: 'list', data: [
-              this.new_object({ type: 'str', val: 'src8392' }),
-              this.new_object({ type: 'str', val: 'src0020' }),
-            ]})
+            {
+              const srcs = Game.rooms[args[0].val].find(FIND_SOURCES);
+              const out = [];
+              for (let src of srcs) {
+                out.push(this.new_object({ type: 'str', val: src.id }));
+              }
+              return this.new_object({ type: 'list', data: out })
+            }
           case 'get_controller_id':
-            return this.new_object({ 
-              type: 'str', val: 'ctrl3922'
-            });
+            {
+              const cid = Game.rooms[args[0].val].controller.id;
+              return this.new_object({ 
+                type: 'str', val: cid,
+              });
+            }
           case 'creep_energy_used_cap':
-            return this.new_object({
-              type: 'int', val: 0,
-            });
+            {
+              console.log('.....', args);
+              const cap = Game.creeps[args[0].val].store.getUsedCapacity(RESOURCE_ENERGY);
+              return this.new_object({
+                type: 'int', val: cap,
+              });
+            }
           case 'creep_energy_free_cap':
-            return this.new_object({
-              type: 'int', val: 0,
-            });          
+            {
+              const cap = Game.creeps[args[0].val].store.getFreeCapacity(RESOURCE_ENERGY);
+              return this.new_object({
+                type: 'int', val: cap,
+              });
+            }
           case 'creep_memory_write_key':
+            {
+              const creep = Game.creeps[args[0].val];
+              creep.memory[args[1].val] = args[2];
+            }
             break;
           case 'creep_memory_read_key':
-            break;
+            {
+              const creep = Game.creeps[args[0].val];
+              let data = creep.memory[args[1].val];
+              if (data === undefined) {
+                data = { type: 'none' }
+              }
+              data.__id = undefined;
+              return this.new_object(data);
+            }
           case 'creep_harvest':
-            return this.new_object({
-              type: 'bool', val: false,
-            });
+            {
+              const creep = Game.creeps[args[0].val];
+              const tid = args[1].val;
+              const res = creep.harvest(Game.getObjectById(tid));
+              return this.new_object({
+                type: 'bool', val: res === OK,
+              });
+            }
           case 'creep_upgrade':
-            return this.new_object({
-              type: 'bool', val: false,
-            });
+            {
+              const creep = Game.creeps[args[0].val];
+              const tid = args[1].val;
+              const res = creep.upgradeController(Game.getObjectById(tid));
+              return this.new_object({
+                type: 'bool', val: res === OK,
+              });
+            }
           case 'creep_move_to':
-            break;
+            {
+              const creep = Game.creeps[args[0].val];
+              const tid = args[1].val;
+              const res = creep.moveTo(Game.getObjectById(tid));
+              console.log('res', res);
+              return this.new_object({
+                type: 'bool', val: res === OK,
+              });
+            }
           default:
             console.log(frame.code.opcodes[frame.ip + 1]);
             throw new Error('not implemented');
@@ -405,6 +450,7 @@ class PyInterp {
 
   opcode_load_fast (arg, thread_id, frame) {
     const name = frame.code.co_varnames[arg].val;
+    console.log(`..name=${name}`);
     frame.stack.push(this.new_object(frame.locals[name]));
   }
 
@@ -572,6 +618,7 @@ class PyInterp {
     }
   }
 
+  
   opcode_pop_jump_if_false (arg, thread_id, frame) {
     const tos = frame.stack.pop();
     
@@ -584,6 +631,10 @@ class PyInterp {
         return;
       default: throw new Error('not implemented');
     }
+  }
+
+  opcode_jump_forward (arg, thread_id, frame) {
+    frame.ip += (arg / 2) - 1;
   }
 
   opcode_call_function (arg, thread_id, frame) {
@@ -705,6 +756,7 @@ class PyInterp {
         }
         break;
       case 'CALL_METHOD':
+        console.log('#', arg);
         let args2 = [];
         for (let x = 0; x < arg; ++x) {
           args2.unshift(stack.pop());
@@ -766,6 +818,9 @@ class PyInterp {
         break;
       case 'IS_OP':
         this.opcode_is_op(arg, thread_ndx, frame);
+        break;
+      case 'JUMP_FORWARD':
+        this.opcode_jump_forward(arg, thread_ndx, frame);
         break;
       default:
         throw new Error(`unknown opcode ${opcode}`);

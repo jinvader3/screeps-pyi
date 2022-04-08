@@ -9,10 +9,10 @@ def creep_thread(creep_id):
     os.debug('creep loop')
 
     if os.creep_energy_used_cap(creep_id) == 0:
-      os.creep_memory_write_key('mode', 'pull')
+      os.creep_memory_write_key(creep_id, 'mode', 'pull')
     
     if os.creep_energy_free_cap(creep_id) == 0:
-      os.creep_memory_write_key('mode', 'push')
+      os.creep_memory_write_key(creep_id, 'mode', 'push')
 
     if os.creep_memory_read_key(creep_id, 'mode') == 'push':
       if os.creep_upgrade(creep_id, controller_id) is False:

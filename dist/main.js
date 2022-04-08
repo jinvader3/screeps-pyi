@@ -2,6 +2,43 @@ const { PyInterp, prog } = require('./pyinterp');
 
 const Memory = {};
 
+global.RESOURCE_ENERGY = 'energy';
+global.OK = 'ok';
+global.FIND_SOURCES = 'find_sources';
+global.Game = {
+  getObjectById: id => {
+    return 'something';
+  },
+  creeps: {
+    ci8392: {
+      harvest: what => {
+        return OK;
+      },
+      upgrade: what => {
+        return OK;
+      },
+      memory: {},
+      id: 'ci8392',
+      store: {
+        getUsedCapacity: what => {
+          return 0;
+        },
+        getFreeCapacity: what => {
+          return 0;
+        },
+      },
+    },
+  },
+  rooms: {
+    W1N2: {
+      controller: { id: 'ctrl9275' },
+      find: (what) => {
+        return [{ id: 'src2128' }]
+      },
+    },
+  },
+};
+
 module.exports.loop = function () {
   let pri; 
 
@@ -12,8 +49,8 @@ module.exports.loop = function () {
     pyi = new PyInterp(JSON.parse(JSON.stringify(prog)));
   }
 
-  pyi.execute_all();
-  //}
+  while (pyi.execute_all()) {
+  }
 
   pyi.clear_next_tick();
   
@@ -32,3 +69,7 @@ for (let x = 0; x < 1000; ++x) {
 }
 
 console.log('done');
+
+
+
+
