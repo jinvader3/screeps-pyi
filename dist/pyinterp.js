@@ -1,5 +1,3 @@
-const prog = require('./pytest');
-
 class PyInterp {
   constructor (prog) {
     this.prog = prog;
@@ -11,10 +9,43 @@ class PyInterp {
     this.threads = {};
     this.last_thread_id = 0;
     this.last_object_id = 0;
+    this.modules = {}
+
+    this.register_module('os');
+    this.register_module_method('os', 'spawn_thread', this.__os__spawn_thread.bind(this)); 
+    this.register_module_method('os', 'next_tick', this.__os__next_tick.bind(this));
+
     if (prog !== null) {
+      // Only do this is we are NOT deserializing afterward.
+      // TODO: Force deserialization to happen through the
+      //       constructor. Detect which is being given.
       this.remap_code_objects();
       this.new_thread(this.prog.data, this.globals);
     }
+  }
+
+  __os__next_tick (thread_id, args, cobj, base, frame) {
+    this.threads[thread_id].next_tick = true;
+    return this.new_object({ type: 'none' });
+  }
+
+  __os__spawn_thread (thread_id, args, cobj, base, frame) {
+    const qname = args[0].val[0];
+    const code = this.get_code_object_by_id(args[0].val[1].code);
+    const ntid = this.new_thread(code, {});
+    const co_argcount = this.threads[ntid].frame.code.co_argcount;
+
+    if (args.length < 1 + co_argcount) {
+      throw new Error('There was not enough arguments supplied to spawn_thread.');
+    }
+
+    for (let x = 0; x < co_argcount; ++x) {
+      let argname = this.threads[ntid].frame.code.co_varnames[x];
+      console.log('loading spawn_thread function argument', argname, args[x+1]);
+      this.threads[ntid].frame.locals[argname.val] = args[x+1];
+    }
+
+    return this.new_object({ type: 'none' });
   }
 
   new_thread (code, scope) {
@@ -117,151 +148,65 @@ class PyInterp {
   } 
 
   load_module (name, fromlist, level) {
-    if (name === 'os') {
-      return { type: 'internal-module', val: 'os' };
+    if (this.modules[name] === undefined) {
+      throw new Error(`The module ${name} is not registered.`);
     }
-    
-    throw new Error('not implemented');
+
+    return { type: 'internal-module', val: name };
   }
 
   internal_module_load_method (mod_name, method_name) {
+    const mod = this.modules[mod_name];
+
+    if (mod === undefined) {
+      throw new Error(`The module ${mod_name} is no longer registered.`);
+    }
+
+    const cb = mod[method_name];
+
+    if (cb === undefined) {
+      throw new Error(`The method ${method_name} is not found in module ${mod_name}.`);
+    }
+
     return { 
-      type: 'internal-method', 
+      type:   'internal-method', 
       module: mod_name,
       method: method_name,
     };
   }
 
+  register_module (module_name) {
+    this.modules[module_name] = {};
+  }
+
+  register_module_method (module_name, method_name, cb) {
+    console.log('register_module_method', module_name, method_name);
+    this.modules[module_name][method_name] = cb;
+  }
+
   internal_method_call (thread_id, args, cobj, base, frame) {
     const state = this.threads[thread_id];
+    const module = cobj.module;
+    const method = cobj.method;
 
-    switch (cobj.module) {
-      case 'builtins':
-        switch (cobj.method.val) {
-          case '__build_class__':
-            throw new Error('__build_class__');
-          default:
-            throw new Error('not implemented');
-        }
-        break;
-      case 'os':
-        switch (cobj.method.val) {
-          case 'spawn_thread':
-            const qname = args[0].val[0];
-            const code = this.get_code_object_by_id(args[0].val[1].code);
-            const ntid = this.new_thread(code, {});
-            for (let x = 0; x < this.threads[ntid].frame.code.co_argcount; ++x) {
-              let argname = this.threads[ntid].frame.code.co_varnames[x];
-              console.log('loading spawn_thread function argument', argname, args[x+1]);
-              this.threads[ntid].frame.locals[argname.val] = args[x+1];
-            }
-            break;
-          case 'debug':
-            console.log('DEBUG', args[0].val);
-            break;
-          case 'next_tick':
-            state.next_tick = true;
-            break;
-          case 'get_creep_ids':
-            {
-              const out = [];
-              for (let cname in Game.creeps) {
-                out.push(this.new_object({
-                  type: 'str', val: cname,
-                }));
-              }
-              return this.new_object({ type: 'list', data: out });
-            }
-            break;
-          case 'creep_get_room_id':
-            return this.new_object({
-              type: 'str', val: 'W1N2'
-            });
-          case 'get_source_ids':
-            {
-              const srcs = Game.rooms[args[0].val].find(FIND_SOURCES);
-              const out = [];
-              for (let src of srcs) {
-                out.push(this.new_object({ type: 'str', val: src.id }));
-              }
-              return this.new_object({ type: 'list', data: out })
-            }
-          case 'get_controller_id':
-            {
-              const cid = Game.rooms[args[0].val].controller.id;
-              return this.new_object({ 
-                type: 'str', val: cid,
-              });
-            }
-          case 'creep_energy_used_cap':
-            {
-              console.log('.....', args);
-              const cap = Game.creeps[args[0].val].store.getUsedCapacity(RESOURCE_ENERGY);
-              return this.new_object({
-                type: 'int', val: cap,
-              });
-            }
-          case 'creep_energy_free_cap':
-            {
-              const cap = Game.creeps[args[0].val].store.getFreeCapacity(RESOURCE_ENERGY);
-              return this.new_object({
-                type: 'int', val: cap,
-              });
-            }
-          case 'creep_memory_write_key':
-            {
-              const creep = Game.creeps[args[0].val];
-              creep.memory[args[1].val] = args[2];
-            }
-            break;
-          case 'creep_memory_read_key':
-            {
-              const creep = Game.creeps[args[0].val];
-              let data = creep.memory[args[1].val];
-              if (data === undefined) {
-                data = { type: 'none' }
-              }
-              data.__id = undefined;
-              return this.new_object(data);
-            }
-          case 'creep_harvest':
-            {
-              const creep = Game.creeps[args[0].val];
-              const tid = args[1].val;
-              const res = creep.harvest(Game.getObjectById(tid));
-              return this.new_object({
-                type: 'bool', val: res === OK,
-              });
-            }
-          case 'creep_upgrade':
-            {
-              const creep = Game.creeps[args[0].val];
-              const tid = args[1].val;
-              const res = creep.upgradeController(Game.getObjectById(tid));
-              return this.new_object({
-                type: 'bool', val: res === OK,
-              });
-            }
-          case 'creep_move_to':
-            {
-              const creep = Game.creeps[args[0].val];
-              const tid = args[1].val;
-              const res = creep.moveTo(Game.getObjectById(tid));
-              console.log('res', res);
-              return this.new_object({
-                type: 'bool', val: res === OK,
-              });
-            }
-          default:
-            console.log(frame.code.opcodes[frame.ip + 1]);
-            throw new Error('not implemented');
-        }
-        break;
-      default:
-        throw new Error('not implemented');
+    if (cobj.module === 'builtins') {
+      switch (cobj.method.val) {
+        case '__build_class__':
+          throw new Error('__build_class__');
+        default:
+          throw new Error('not implemented');
+      }
+    }
+  
+    if (this.modules[module] === undefined) {
+      throw new Error(`The module ${module} is no longer registered.`);
     }
 
-    return { type: 'none' }
+    if (this.modules[module][method] === undefined) {
+      throw new Error(`The method ${module}.${method} is no longer registered.`);
+    }
+
+    return this.modules[module][method](thread_id, args, cobj, base, frame);    
   }
 
   execute_all () {
@@ -654,16 +599,6 @@ class PyInterp {
         const _code = this.get_code_object_by_id(cobj.val[1].code);
         this.new_frame(thread_id, _code, {});
         break;
-      case 'locref':
-        const local = frame.locals[cobj.val]
-        console.log(`val: ${cobj.val}`, local);
-        if (local.type === 'func') {
-          const __code = this.get_code_object_by_id(local.val[1].code);
-          this.new_frame(thread_id, __code, {});
-        } else {
-          throw new Error('not implemented');
-        }
-        break;
       case 'func':
         const ___code = this.get_code_object_by_id(cobj.val[1].code);
         this.new_frame(thread_id, ___code, {});
@@ -739,7 +674,7 @@ class PyInterp {
         let obj = stack.pop()
         if (obj.type === 'internal-module') {
           stack.push(this.new_object({ type: 'none' }))
-          stack.push(this.new_object(this.internal_module_load_method(obj.val, co_names[arg])));
+          stack.push(this.new_object(this.internal_module_load_method(obj.val, co_names[arg].val)));
         } else {
           throw new Error('not implemented');
         }
@@ -842,17 +777,5 @@ class PyInterp {
     return false;
   }
 }
-/*
-pyi = new PyInterp(prog);
 
-while (true) {
-  while (pyi.execute_all()) {
-  }
-
-  console.log('LAST');
-
-  pyi.deserialize(pyi.serialize());
-}
-*/
 module.exports.PyInterp = PyInterp;
-module.exports.prog = prog;
