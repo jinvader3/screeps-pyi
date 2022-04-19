@@ -192,6 +192,9 @@ class PyInterp {
     if (cobj.module === 'builtins') {
       switch (cobj.method.val) {
         case '__build_class__':
+          const code = this.get_code_object_by_id(args[0].val[1].code);
+          console.log('args', JSON.stringify(args, null, 2));
+          console.log('code', code);
           throw new Error('__build_class__');
         default:
           throw new Error('not implemented');
@@ -730,11 +733,11 @@ class PyInterp {
         frame.ip = (arg / 2) - 1;
         break;
       case 'LOAD_BUILD_CLASS':
-        stack.push({
+        stack.push(this.new_object({
           type: 'internal-function',
           module: 'builtins',
           method: { val: '__build_class__' },
-        });
+        }));
         break;
       case 'BUILD_MAP':
         this.opcode_build_map(arg, thread_ndx, frame);

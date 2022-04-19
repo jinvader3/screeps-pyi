@@ -8,7 +8,9 @@ typedef unsigned long uint32_t;
 uint8_t g_heap_bm[HEAPSIZE / HEAPSEGSZ];
 uint8_t g_heap[HEAPSIZE];
 
-void print (const char *s);
+void print_utf8_hex (uint8_t v);
+void print_eol ();
+void print_string (const char *s);
 void malloc_init ();
 
 class Okay {
@@ -19,7 +21,14 @@ class Okay {
 
 
 int main () {
-  print("h");
+  //print_string("hello");
+  //print_eol();
+  print_utf8_hex(0x2a);
+  print_eol();
+  //print_utf8_hex(0x34);
+  //print_eol();
+  //print_utf8_hex(0x56);
+  //print_eol();
   //malloc_init();
 
   //Okay *a = new Okay();
@@ -35,11 +44,31 @@ Okay::Okay() {
 Okay::~Okay() {
 }
 
-void print (const char *s) {
-  for (uint16_t x = 0; s[x] != 0; ++x) {
-    __asm__("out 0, %0" : : "r" (s[x]));
+void print_char (uint16_t v) {
+  __asm__("out 0, %0" : : "r" (v));
+}
+
+void print_nibble (uint8_t v) {
+  if (v > 9) {
+    print_char('A' + (v - 10));
+  } else {
+    print_char('0' + v);
   }
-  __asm__("out 0, %0" : : "r" ('\n'));
+}
+
+void print_utf8_hex (uint8_t v) {
+  print_nibble((v >> 4) & 0xf);
+  print_nibble(v & 0xf);
+}
+
+void print_string (const char *s) {
+  for (uint16_t x = 0; s[x] != 0; ++x) {
+    print_char(s[x]);
+  }
+}
+
+void print_eol () {
+  print_char('\n');
 }
 
 void malloc_init () {
