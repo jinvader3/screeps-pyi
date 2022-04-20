@@ -20,49 +20,49 @@ class AvrInterp {
       [0x920F, 0xFE0F, this.op_push.bind(this)],
       [0x900f, 0xfe0f, this.op_pop.bind(this)],
       [0xB000, 0xF800, this.op_in.bind(this)],
-      [0xE000, 0xF000, this.op_ldi.bind(this)],
+      [0xE000, 0xF000, this.op_ldi.bind(this)],     // T
       [0xD000, 0xF000, this.op_rcall.bind(this)],
       [0x2400, 0xFC00, this.op_eor.bind(this)],
-      [0x5000, 0xF000, this.op_subi.bind(this)],
-      [0xB800, 0xF800, this.op_out.bind(this)],
-      [0x8208, 0xFE0F, this.op_std_1.bind(this)],
-      [0x9209, 0xFE0F, this.op_std_2.bind(this)],
-      [0x920a, 0xFE0F, this.op_std_3.bind(this)],
-      [0x8208, 0xD208, this.op_std_4.bind(this)],
+      [0x5000, 0xF000, this.op_subi.bind(this)],    // T
+      [0xB800, 0xF800, this.op_out.bind(this)],     // T
       [0x8008, 0xFE0F, this.op_lddy_1.bind(this)],
       [0x9009, 0xFE0F, this.op_lddy_2.bind(this)],
       [0x900a, 0xFE0F, this.op_lddy_3.bind(this)],
       [0x8008, 0xD208, this.op_lddy_4.bind(this)],
-      [0x1400, 0xFC00, this.op_cp.bind(this)], //
+      [0x1400, 0xFC00, this.op_cp.bind(this)],      // T
       [0x0400, 0xFC00, this.op_cpc.bind(this)],
       [0xf400, 0xfc07, this.op_brcc.bind(this)],
-      [0x0c00, 0xfc00, this.op_add.bind(this)],
+      [0x0c00, 0xfc00, this.op_add.bind(this)],     // T
       [0x1c00, 0xfc00, this.op_adc.bind(this)], 
-      [0x2c00, 0xfc00, this.op_mov.bind(this)], // T
-      [0x8200, 0xfe0f, this.op_st_1.bind(this)],
-      [0x9201, 0xfe0f, this.op_st_2.bind(this)],
-      [0x9202, 0xfe0f, this.op_st_3.bind(this)],
-      [0x8200, 0xd208, this.op_st_4.bind(this)],
-      [0x9600, 0xff00, this.op_adiw.bind(this)],
-      [0xc000, 0xf000, this.op_rjmp.bind(this)],
-      [0x9406, 0xfc0f, this.op_lsr.bind(this)],
-      [0x9407, 0xfe07, this.op_ror.bind(this)],
+      [0x2c00, 0xfc00, this.op_mov.bind(this)],     // T
+      [0x8208, 0xFE0F, this.op_sty_1.bind(this)],
+      [0x9209, 0xFE0F, this.op_sty_2.bind(this)],
+      [0x920a, 0xFE0F, this.op_sty_3.bind(this)],
+      [0x8208, 0xD208, this.op_sty_4.bind(this)],
+      [0x8200, 0xfe0f, this.op_stz_1.bind(this)],
+      [0x9201, 0xfe0f, this.op_stz_2.bind(this)],   // T
+      [0x9202, 0xfe0f, this.op_stz_3.bind(this)],
+      [0x8200, 0xd208, this.op_stz_4.bind(this)],
+      [0x9600, 0xff00, this.op_adiw.bind(this)],    // T
+      [0xc000, 0xf000, this.op_rjmp.bind(this)],    // T
+      [0x9406, 0xfc0f, this.op_lsr.bind(this)],     // T
+      [0x9407, 0xfe07, this.op_ror.bind(this)],     // T
       [0x9402, 0xfe0f, this.op_swap.bind(this)],
-      [0x7000, 0xf000, this.op_andi.bind(this)],
+      [0x7000, 0xf000, this.op_andi.bind(this)],    // T
       [0x4000, 0xf000, this.op_sbci.bind(this)],
-      [0x0000, 0xffff, this.op_nop.bind(this)],
+      [0x0000, 0xffff, this.op_nop.bind(this)],     // T
       [0x9508, 0xffff, this.op_ret.bind(this)],
-      [0x9700, 0xff00, this.op_sbiw.bind(this)],
+      [0x9700, 0xff00, this.op_sbiw.bind(this)],    // T
       [0x8000, 0xfe0f, this.op_lddz_1.bind(this)],
-      [0x9001, 0xfe0f, this.op_lddz_2.bind(this)],
+      [0x9001, 0xfe0f, this.op_lddz_2.bind(this)],  // T
       [0x9002, 0xfe0f, this.op_lddz_3.bind(this)],
       [0x8000, 0xd208, this.op_lddz_4.bind(this)],
-      [0x2000, 0xfc00, this.op_and.bind(this)],
-      [0xf001, 0xfc07, this.op_breq.bind(this)],
-      [0xf401, 0xfc07, this.op_brne.bind(this)],
+      [0x2000, 0xfc00, this.op_and.bind(this)],     // T
+      [0xf001, 0xfc07, this.op_breq.bind(this)],    // T
+      [0xf401, 0xfc07, this.op_brne.bind(this)],    // T
       [0x940e, 0xfe0e, this.op_call.bind(this)],
-      [0x3000, 0xf000, this.op_cpi.bind(this)],
-      [0xf000, 0xfc07, this.op_brcs.bind(this)],
+      [0x3000, 0xf000, this.op_cpi.bind(this)],     // T
+      [0xf000, 0xfc07, this.op_brcs.bind(this)],    // T
       [0x9405, 0xfe0f, this.op_asr.bind(this)],
       [0x0800, 0xfc00, this.op_sbc.bind(this)],
     ];
@@ -179,7 +179,7 @@ class AvrInterp {
   op_lddz_2 (opcode) {
     const d = opcode[0] >> 4 & 0x1f;
     const z = this.read_z();
-    console.log(`lddz_2 d=${d} z=${z}`);
+    console.log(`lddz_2 d=${d} z=${z} data=${this.data[z]}`);
     this.state.reg[d] = this.data[z];
     this.write_z(z + 1);
     this.state.pc += 2;
@@ -280,10 +280,10 @@ class AvrInterp {
     const c = this.state.sreg & 1;
     const nv = c === 1 ? 0x80 | (v >> 1) : v >> 1;
     console.log('ror', d, v, c, nv);
-    this.state.sreg = 0;
-    this.state.sreg |= nv === 0 ? 2 : 0;
-    this.state.sreg |= v & 1;
-    this.state.sreg |= nv & 0x80 ? 4 : 0;
+    this.state.sreg &= 0xff - (4 + 2 + 1);
+    this.state.sreg |= (nv & 0x80) ? 4 : 0;
+    this.state.sreg |= (nv === 0) ? 2 : 0;
+    this.state.sreg |= (v & 1) ? 1 : 0;
     this.state.reg[d] = nv;
     this.state.pc += 2;
   }
@@ -291,8 +291,11 @@ class AvrInterp {
   op_lsr (opcode) {
     const d = opcode[0] >> 4 & 0x1f;
     const v = this.state.reg[d];
-    this.state.sreg = (v & 1) | ((v >> 1) === 0 ? 2 : 0);
-    this.state.reg[d] = v >> 1;
+    const nv = v >> 1;
+    this.state.sreg &= 0xff - (1 + 2 + 4);
+    this.state.sreg |= (nv === 0) ? 2 : 0;
+    this.state.sreg |= (v & 1) ? 1 : 0;
+    this.state.reg[d] = nv;
     this.state.pc += 2;
   }
 
@@ -318,7 +321,7 @@ class AvrInterp {
     this.state.pc += 2;
   }
 
-  op_st_1 (opcode) {
+  op_stz_1 (opcode) {
     const r = opcode[0] >> 4 & 0x10;
     const z = this.read_z();
     console.log('st_1', r, z);
@@ -326,16 +329,17 @@ class AvrInterp {
     this.state.pc += 2;
   }
 
-  op_st_2 (opcode) {
+  op_stz_2 (opcode) {
     const r = opcode[0] >> 4 & 0x10;
     const z = this.read_z();
     console.log('st_2', r, z);
+    console.log(`st_2 r=${r}<${this.state.reg[r]}> z=${z}`);
     this.data[z] = this.state.reg[r];
     this.write_z(z + 1);
     this.state.pc += 2;
   }
 
-  op_st_3 (opcode) {
+  op_stz_3 (opcode) {
     const r = opcode[0] >> 4 & 0x10;
     const z = this.read_z();
     console.log('st_3', r, z);
@@ -344,7 +348,7 @@ class AvrInterp {
     this.state.pc += 2;
   }
 
-  op_st_4 (opcode) {
+  op_stz_4 (opcode) {
     const r = opcode[0] >> 4 & 0x10;
     const q = (opcode[0] & 7) | (opcode[0] >> 7 & 0x18) | (opcode[0] >> 8 & 0x20);
     const z = this.read_z();
@@ -513,14 +517,14 @@ class AvrInterp {
     this.state.pc += 2;
   }
 
-  op_std_1 (opcode) {
+  op_sty_1 (opcode) {
     const r = opcode[0] >> 4 & 0x1f;
     const y = this.read_y();
     console.log(`std_1 r=${r} y=${y}`);
     this.data[y] = this.state.reg[r];
   }
 
-  op_std_2 (opcode) {
+  op_sty_2 (opcode) {
     const r = opcode[0] >> 4 & 0x1f;
     const y = this.read_y();
     console.log(`std_2 r=${r} y=${y}++`);
@@ -528,7 +532,7 @@ class AvrInterp {
     this.write_y(y + 1);
   }
 
-  op_std_3 (opcode) {
+  op_sty_3 (opcode) {
     const r = opcode[0] >> 4 & 0x1f;
     const y = this.read_y();
     console.log(`std_3 r=${r} y=--${y}`);
@@ -578,7 +582,7 @@ class AvrInterp {
     return v;
   }
 
-  op_std_4 (opcode) {
+  op_sty_4 (opcode) {
     const r = opcode[0] >> 4 & 0x1f;
     const q = this.signed_8(
       (opcode[0] & 0x7) | (opcode[0] >> 7 & 0x18) | (opcode[0] >> 8 & 0x20) 
