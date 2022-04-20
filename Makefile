@@ -9,7 +9,7 @@ avrtest1: ./dist/avrtest1.cc
 	avr-g++ ./dist/avrtest1.cc -T./dist/linker.script -nostdlib -mmcu=avr3 -mno-interrupts -o ./dist/avrtest1
 	avr-objcopy ./dist/avrtest1 --dump-section .text=./dist/avrtest1_code
 	avr-objcopy ./dist/avrtest1 --dump-section .rodata=./dist/avrtest1_rodata
-	nodejs ./dist/avrinterp.js
+	nodejs ./dist/avrtest1.js
 avrtest2: ./dist/avrtest2.s
 	avr-gcc -nostdlib ./dist/avrtest2.s -mmcu=avr3 -o ./dist/avrtest2
 	avr-objcopy ./dist/avrtest2 --dump-section .text=./dist/avrtest2_code
