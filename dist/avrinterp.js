@@ -1,15 +1,9 @@
-const fs = require('fs');
-const readline = require('readline');
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
-
 class AvrState {
   constructor () {
     this.pc = 0;
     this.sp = 0xfff0;
     this.reg = new Uint8Array(32);
+    this.sreg = 0;
   }
 }
 
@@ -19,6 +13,7 @@ class AvrInterp {
     this.data = data;
     this.state = state;
     this.stdout = [];
+    this.io_write_handler = {};
 
     this.om = [
       // code, mask, handler
@@ -38,12 +33,12 @@ class AvrInterp {
       [0x9009, 0xFE0F, this.op_lddy_2.bind(this)],
       [0x900a, 0xFE0F, this.op_lddy_3.bind(this)],
       [0x8008, 0xD208, this.op_lddy_4.bind(this)],
-      [0x1400, 0xFC00, this.op_cp.bind(this)],
+      [0x1400, 0xFC00, this.op_cp.bind(this)], //
       [0x0400, 0xFC00, this.op_cpc.bind(this)],
       [0xf400, 0xfc07, this.op_brcc.bind(this)],
       [0x0c00, 0xfc00, this.op_add.bind(this)],
-      [0x1c00, 0xfc00, this.op_adc.bind(this)],
-      [0x2c00, 0xfc00, this.op_mov.bind(this)],
+      [0x1c00, 0xfc00, this.op_adc.bind(this)], 
+      [0x2c00, 0xfc00, this.op_mov.bind(this)], // T
       [0x8200, 0xfe0f, this.op_st_1.bind(this)],
       [0x9201, 0xfe0f, this.op_st_2.bind(this)],
       [0x9202, 0xfe0f, this.op_st_3.bind(this)],
@@ -69,7 +64,24 @@ class AvrInterp {
       [0x3000, 0xf000, this.op_cpi.bind(this)],
       [0xf000, 0xfc07, this.op_brcs.bind(this)],
       [0x9405, 0xfe0f, this.op_asr.bind(this)],
+      [0x0800, 0xfc00, this.op_sbc.bind(this)],
     ];
+  }
+
+  op_sbc (opcode) {
+    const r = (opcode[0] & 0xf) | (opcode[0] >> 5 & 0x10);
+    const d = opcode[0] >> 4 & 0x1f;
+    const dv = this.state.reg[d];
+    const rv = this.state.reg[r];
+    const c = this.state.sreg & 1;
+    const nv = (dv - rv - c) & 0xff;
+    console.log(`sbc r${d}<${dv}> - r${r}<${rv} - c<${c}> = ${nv}`);
+    this.state.sreg &= 0xff - (4 + 2 + 1);
+    this.state.sreg |= (nv & 0x80) ? 4 : 0;
+    this.state.sreg |= (nv === 0) ? 2 : 0;
+    this.state.sreg |= ((this.abs_8(rv) + c) > this.abs_8(dv)) ? 1 : 0;
+    this.state.reg[d] = nv;
+    this.state.pc += 2;
   }
 
   op_asr (opcode) {
@@ -427,9 +439,9 @@ class AvrInterp {
     // TODO: S=for signed tests
     // TODO: V=two's complement overflow
     // negative
-    this.state.sreg |= (v & 0x80) >> 6;
+    this.state.sreg |= (v & 0x80) ? 4 : 0;
     // zero
-    this.state.sreg |= v == 0 ? 0x2 : 0x0;
+    this.state.sreg |= (v === 0) ? 0x2 : 0x0;
     // carry
     this.state.sreg |= this.abs_8(this.state.reg[r]) > this.abs_8(this.state.reg[d]) ? 1 : 0;
     console.log('sreg', this.state.sreg);
@@ -611,7 +623,16 @@ class AvrInterp {
     }
   }
 
+  register_io_write (port, cb) {
+    this.io_write_handler[port] = cb;
+  }
+
   io_write (a, v) {
+    if (this.io_write_handler[a] !== undefined) {
+      this.io_write_handler[a](v);
+      return;
+    }
+
     switch (a) {
       case 0x00:
         this.stdout_write(v);
@@ -637,10 +658,14 @@ class AvrInterp {
   op_subi (opcode) {
     const k = (opcode[0] >> 4 & 0xf0) | (opcode[0] & 0xf);
     const d = (opcode[0] >> 4 & 0xf) + 16;
-    const v = (this.state.reg[d] - k) & 0xff;
-    console.log(`subi r${d}<${this.state.reg[d]}> - k<${k}> = ${v}`);
-    this.handle_sreg(v, this.abs_8(k) > this.abs_8(this.state.reg[d]) ? 1 : 0);
-    this.state.reg[d] = v;
+    const v = this.state.reg[d];
+    const nv = (this.state.reg[d] - k) & 0xff;
+    console.log(`subi r${d}<${v}> - k<${k}> = ${nv}`);
+    this.state.sreg &= 0xff - (4 + 2 + 1);
+    this.state.sreg |= (nv & 0x80) ? 4 : 0;
+    this.state.sreg |= (nv === 0) ? 2 : 0;
+    this.state.sreg |= (this.abs_8(k) > this.abs_8(v)) ? 1 : 0;
+    this.state.reg[d] = nv;
     this.state.pc += 2;
   }
 
@@ -723,6 +748,7 @@ class AvrInterp {
       if ((opcode[0] & entry[1]) === entry[0]) {
         entry[2](opcode);
         this.print_stack_line();
+        console.log('SREG', this.state.sreg);
         return;
       }
     }
@@ -730,6 +756,17 @@ class AvrInterp {
     throw new Error();
   }
 }
+
+module.exports.AvrInterp = AvrInterp;
+module.exports.AvrState = AvrState;
+
+/*
+const fs = require('fs');
+const readline = require('readline');
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
 
 const code = fs.readFileSync('./dist/avrtest1_code');
 const ro_data = fs.readFileSync('./dist/avrtest1_rodata');
@@ -740,7 +777,6 @@ for (let x = 0; x < ro_data.length; ++x) {
 }
       
 const i = new AvrInterp(code, data, new AvrState());
-
 const e = () => {
   i.execute_single();
 };
@@ -759,5 +795,5 @@ function ask () {
 };
 
 ask();
-
 //console.log(i.signed_8(0xff));
+*/

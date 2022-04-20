@@ -10,3 +10,7 @@ avrtest1: ./dist/avrtest1.cc
 	avr-objcopy ./dist/avrtest1 --dump-section .text=./dist/avrtest1_code
 	avr-objcopy ./dist/avrtest1 --dump-section .rodata=./dist/avrtest1_rodata
 	nodejs ./dist/avrinterp.js
+avrtest2: ./dist/avrtest2.s
+	avr-gcc -nostdlib ./dist/avrtest2.s -mmcu=avr3 -o ./dist/avrtest2
+	avr-objcopy ./dist/avrtest2 --dump-section .text=./dist/avrtest2_code
+	nodejs ./dist/avrtest2.js
