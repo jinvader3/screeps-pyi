@@ -24,10 +24,16 @@ class Okay {
 
 int main () {
   malloc_init();
-
-  print_utf16_hex((uint16_t)malloc(1));
-  print_utf16_hex((uint16_t)malloc(1));
+  uint16_t x;
+  x = (uint16_t)malloc(1); 
+  x = (uint16_t)malloc(1); 
+  
   print_eol();
+  print_utf16_hex(x);
+  //print_utf16_hex((uint16_t)malloc(1));
+  print_eol();
+  
+  __asm__("out 6, 0");
 
   //Okay *a = new Okay();
   //delete a;
@@ -76,15 +82,13 @@ void print_eol () {
 
 void malloc_init () {
   for (uint16_t x = 0; x < HEAPSIZE / HEAPSEGSZ; ++x) {
-    g_heap_bm[x] = 1;
+    g_heap_bm[x] = 0;
   }
 }
 
 void* malloc (unsigned int sz) {
   uint16_t cnt = (sz / HEAPSEGSZ) + 1;
-
   for (uint16_t x = 0; x < sizeof(g_heap_bm); ++x) {
-    __asm__("out 0, %0" : : "r" (99));
     if (g_heap_bm[x] == 0) {
       for (uint16_t y = 0; 
         (y + x < sizeof(g_heap_bm)) &&
@@ -93,11 +97,13 @@ void* malloc (unsigned int sz) {
           for (uint16_t z = 0; z < y + 1; ++z) {
             g_heap_bm[x + z] = 1;
           }
-          return (void*)x; //&g_heap[x * HEAPSEGSZ];
+          return (void*)&g_heap[x * HEAPSEGSZ];
         }
       } 
     }
   }
+  
+  __asm__("out 6, 0");
 
   return (void*)0;
 }

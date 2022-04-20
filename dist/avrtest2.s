@@ -94,6 +94,7 @@ test_data:
   ld r16, z+
   cpi r16, 0
   brne failure
+  # Test post increment.
   # Put a new value in memory.
   ldi r30, 0
   ldi r31, 0

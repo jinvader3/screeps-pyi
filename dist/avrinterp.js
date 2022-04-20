@@ -75,7 +75,7 @@ class AvrInterp {
     const rv = this.state.reg[r];
     const c = this.state.sreg & 1;
     const nv = (dv - rv - c) & 0xff;
-    console.log(`sbc r${d}<${dv}> - r${r}<${rv} - c<${c}> = ${nv}`);
+    this.ilog(`sbc r${d}<${dv}> - r${r}<${rv} - c<${c}> = ${nv}`);
     this.state.sreg &= 0xff - (4 + 2 + 1);
     this.state.sreg |= (nv & 0x80) ? 4 : 0;
     this.state.sreg |= (nv === 0) ? 2 : 0;
@@ -92,18 +92,18 @@ class AvrInterp {
     this.state.sreg |= v & 1;
     this.state.sreg |= (nv === 0) ? 2 : 0;
     this.state.sreg |= (nv & 0x80) ? 4 : 0;
-    console.log(`asr ${v} >> 1 = ${nv}`);
+    this.ilog(`asr ${v} >> 1 = ${nv}`);
     this.state.pc += 2;
   }
 
   op_brcs (opcode) {
     const k = this.signed_7(opcode[0] >> 3 & 0x7f);
-    console.log('brcs', k);
+    this.ilog('brcs', k);
     if ((this.state.sreg & 1) === 1) {
-      console.log('branching');
+      this.ilog('branching');
       this.state.pc += k * 2 + 2;
     } else {
-      console.log('not branching');
+      this.ilog('not branching');
       this.state.pc += 2;
     }
   }
@@ -117,14 +117,14 @@ class AvrInterp {
     this.state.sreg |= (0x80 & nv) ? 4 : 0;
     this.state.sreg |= (nv === 0) ? 2 : 0;
     this.state.sreg |= this.abs_8(k) > this.abs_8(v) ? 1 : 0;
-    console.log('cpi', k, d, v, nv, this.state.sreg);
+    this.ilog('cpi', k, d, v, nv, this.state.sreg);
     this.state.pc += 2;
   }
 
   op_call (opcode) {
     const k = opcode[1];
     const spc = this.state.pc + 4;
-    console.log('call', k, spc);
+    this.ilog('call', k, spc);
     this.data[this.state.sp--] = (spc >> 8) & 0xff;
     this.data[this.state.sp--] = spc & 0xff;
     this.state.pc = k * 2;
@@ -132,24 +132,24 @@ class AvrInterp {
 
   op_brne (opcode) {
     const k = this.signed_7(opcode[0] >> 3 & 0x7f);
-    console.log('brne', k);
+    this.ilog('brne', k);
     if ((this.state.sreg & 0x2) === 0) {
-      console.log('branching');
+      this.ilog('branching');
       this.state.pc += k * 2 + 2;
     } else {
-      console.log('not branching');
+      this.ilog('not branching');
       this.state.pc += 2;
     }
   }
 
   op_breq (opcode) {
     const k = this.signed_7(opcode[0] >> 3 & 0x7f);
-    console.log('breq', k, this.state.sreg);
+    this.ilog('breq', k, this.state.sreg);
     if ((this.state.sreg & 0x2) === 0x2) {
-      console.log('branching');
+      this.ilog('branching');
       this.state.pc += k * 2 + 2;
     } else {
-      console.log('not branching');
+      this.ilog('not branching');
       this.state.pc += 2;
     }
   }
@@ -159,19 +159,19 @@ class AvrInterp {
     const r = (opcode[0] & 0xf) | (opcode[0] >> 5 & 0x10);
     const v = this.state.reg[d];
     const nv = v & this.state.reg[r];
-    console.log('and', d, r, v, nv);
+    this.ilog('and', d, r, v, nv);
     this.state.reg[d] = nv;
     this.state.sreg &= 0xff - (2 + 4);
     this.state.sreg |= (nv === 0) ? 2 : 0;
     this.state.sreg |= nv & 0x80 ? 4 : 0;
-    console.log('sreg', this.state.sreg);
+    this.ilog('sreg', this.state.sreg);
     this.state.pc += 2;
   }
 
   op_lddz_1 (opcode) {
     const d = opcode[0] >> 4 & 0x1f;
     const z = this.read_z();
-    console.log(`lddz_1 d=${d} z=${z}`);
+    this.ilog(`lddz_1 d=${d} z=${z}`);
     this.state.reg[d] = this.data[z];
     this.state.pc += 2;
   }
@@ -179,7 +179,7 @@ class AvrInterp {
   op_lddz_2 (opcode) {
     const d = opcode[0] >> 4 & 0x1f;
     const z = this.read_z();
-    console.log(`lddz_2 d=${d} z=${z} data=${this.data[z]}`);
+    this.ilog(`lddz_2 d=${d} z=${z} data=${this.data[z]}`);
     this.state.reg[d] = this.data[z];
     this.write_z(z + 1);
     this.state.pc += 2;
@@ -188,7 +188,7 @@ class AvrInterp {
   op_lddz_3 (opcode) {
     const d = opcode[0] >> 4 & 0x1f;
     const z = this.read_z();
-    console.log(`lddz_3 d=${d} z=${z}`);
+    this.ilog(`lddz_3 d=${d} z=${z}`);
     this.state.reg[d] = this.data[z - 1];
     this.write_z(z - 1);
     this.state.pc += 2;
@@ -200,7 +200,7 @@ class AvrInterp {
       (opcode[0] & 0x7) | (opcode[0] >> 7 & 0x18) | (opcode[0] >> 8 & 0x20) 
     );
     const z = this.read_z();
-    console.log(`lddz_4 d=${d} q=${q} z=${z}`);
+    this.ilog(`lddz_4 d=${d} q=${q} z=${z}`);
     this.state.reg[d] = this.data[z + q];
     this.state.pc += 2;
   }
@@ -212,7 +212,7 @@ class AvrInterp {
     const high = this.state.reg[base+1];
     const v = (high << 8) | low;
     const nv = v - k;
-    console.log('sbiw', k, d, base, low, high, v, nv);
+    this.ilog('sbiw', k, d, base, low, high, v, nv);
     this.state.reg[base+0] = nv & 0xff;
     this.state.reg[base+1] = (nv >> 8) & 0xff;
     this.state.sreg &= 255 - (1 + 2 + 4);
@@ -225,12 +225,12 @@ class AvrInterp {
   op_ret (opcode) {
     const pc_low = this.data[++this.state.sp];
     const pc_high = this.data[++this.state.sp];
-    console.log('ret', pc_low, pc_high);
+    this.ilog('ret', pc_low, pc_high);
     this.state.pc = (pc_high << 8) | pc_low; 
   }
 
   op_nop (opcode) {
-    console.log('nop');
+    this.ilog('nop');
     this.state.pc += 2;
   }
 
@@ -240,7 +240,7 @@ class AvrInterp {
     const v = this.state.reg[d];
     const c = this.state.sreg & 1;
     const nv = v - k - c;
-    console.log('sbci', k, d, v, c, nv);
+    this.ilog('sbci', k, d, v, c, nv);
     this.state.reg[d] = nv;
     const old_sreg = this.state.sreg;
     this.state.sreg = 0;
@@ -255,7 +255,7 @@ class AvrInterp {
     const k = (opcode[0] >> 4 & 0xf0) | (opcode[0] & 0xf);
     const v = this.state.reg[d];
     const nv = v & k;
-    console.log('andi', d, k, v, nv);
+    this.ilog('andi', d, k, v, nv);
     this.state.sreg &= 0xff - (2 + 4);
     this.state.sreg |= nv === 0 ? 2 : 0;
     this.state.sreg |= nv & 0x80 ? 4 : 0;
@@ -265,7 +265,7 @@ class AvrInterp {
 
   op_swap (opcode) {
     const d = opcode[0] >> 4 & 0x1f;
-    console.log('swap', d);
+    this.ilog('swap', d);
     const v = this.state.reg[d];
     const h = (v >> 4) & 0xf;
     const l = v & 0xf;
@@ -279,7 +279,7 @@ class AvrInterp {
     const v = this.state.reg[d];
     const c = this.state.sreg & 1;
     const nv = c === 1 ? 0x80 | (v >> 1) : v >> 1;
-    console.log('ror', d, v, c, nv);
+    this.ilog('ror', d, v, c, nv);
     this.state.sreg &= 0xff - (4 + 2 + 1);
     this.state.sreg |= (nv & 0x80) ? 4 : 0;
     this.state.sreg |= (nv === 0) ? 2 : 0;
@@ -301,7 +301,7 @@ class AvrInterp {
 
   op_rjmp (opcode) {
     const k = opcode[0] & 0xfff;
-    console.log('rjmp', k, this.signed_12(k));
+    this.ilog('rjmp', k, this.signed_12(k));
     this.state.pc += this.signed_12(k) * 2 + 2;
   }
 
@@ -311,7 +311,7 @@ class AvrInterp {
     const base = 24 + d * 2;
     const v = (this.state.reg[base+1] << 8) | this.state.reg[base];
     const r = v + k;
-    console.log(`adiw r${base+1}:r${base}<${v}> + k<${k}> = ${r}`);
+    this.ilog(`adiw r${base+1}:r${base}<${v}> + k<${k}> = ${r}`);
     this.state.sreg &= 0xff - (1 + 2 + 4);
     this.state.sreg |= (r & 0x80) ? 4 : 0;
     this.state.sreg |= (r === 0) ? 2 : 0;
@@ -322,37 +322,37 @@ class AvrInterp {
   }
 
   op_stz_1 (opcode) {
-    const r = opcode[0] >> 4 & 0x10;
+    const r = opcode[0] >> 4 & 0x1f;
     const z = this.read_z();
-    console.log('st_1', r, z);
+    this.ilog(`stz_1 r=${r}<${this.state.reg[r]}> z=${z}`);
     this.data[z] = this.state.reg[r];
     this.state.pc += 2;
   }
 
   op_stz_2 (opcode) {
-    const r = opcode[0] >> 4 & 0x10;
+    const r = opcode[0] >> 4 & 0x1f;
     const z = this.read_z();
-    console.log('st_2', r, z);
-    console.log(`st_2 r=${r}<${this.state.reg[r]}> z=${z}`);
+    this.ilog('st_2', r, z);
+    this.ilog(`st_2 r=${r}<${this.state.reg[r]}> z=${z}`);
     this.data[z] = this.state.reg[r];
     this.write_z(z + 1);
     this.state.pc += 2;
   }
 
   op_stz_3 (opcode) {
-    const r = opcode[0] >> 4 & 0x10;
+    const r = opcode[0] >> 4 & 0x1f;
     const z = this.read_z();
-    console.log('st_3', r, z);
+    this.ilog('st_3', r, z);
     this.data[z - 1] = this.state.reg[r];
     this.write_z(z - 1);
     this.state.pc += 2;
   }
 
   op_stz_4 (opcode) {
-    const r = opcode[0] >> 4 & 0x10;
+    const r = opcode[0] >> 4 & 0x1f;
     const q = (opcode[0] & 7) | (opcode[0] >> 7 & 0x18) | (opcode[0] >> 8 & 0x20);
     const z = this.read_z();
-    console.log('st_4', r, z, q);
+    this.ilog('st_4', r, z, q);
     this.data[z + this.signed_8(q)] = this.state.reg[r];
     this.state.pc += 2;
   }
@@ -360,7 +360,7 @@ class AvrInterp {
   op_mov (opcode) {
     const r = (opcode[0] >> 5 & 0x10) | (opcode[0] & 0xf);
     const d = opcode[0] >> 4 & 0x1f;
-    console.log('mov', r, d);
+    this.ilog('mov', r, d);
     this.state.reg[d] = this.state.reg[r];
     this.state.pc += 2;
   }
@@ -382,7 +382,7 @@ class AvrInterp {
     const c = this.state.sreg & 1;
     const d = opcode[0] >> 4 & 0x1f;
     const v = this.state.reg[d] + this.state.reg[r] + c;
-    console.log(`adc r${r}/${this.state.reg[r]} + r${d}/${this.state.reg[d]} + ${c} = ${v}`);
+    this.ilog(`adc r${r}/${this.state.reg[r]} + r${d}/${this.state.reg[d]} + ${c} = ${v}`);
     this.handle_sreg(v, v > 0xff);
     this.state.reg[d] = v;
     this.state.pc += 2;
@@ -392,7 +392,7 @@ class AvrInterp {
     const r = (opcode[0] >> 5 & 0x10) | (opcode[0] & 0xf);
     const d = opcode[0] >> 4 & 0x1f;
     const v = this.state.reg[d] + this.state.reg[r];
-    console.log(`add r${r}/${this.state.reg[r]} + r${d}/${this.state.reg[d]} = ${v}`);
+    this.ilog(`add r${r}/${this.state.reg[r]} + r${d}/${this.state.reg[d]} = ${v}`);
     this.handle_sreg(v, v > 0xff);
     this.state.reg[d] = v;
     this.state.pc += 2;
@@ -400,12 +400,12 @@ class AvrInterp {
 
   op_brcc (opcode) {
     const k = opcode[0] >> 3 & 0x3f;
-    console.log('brcc', this.state.sreg & 1, k);
+    this.ilog('brcc', this.state.sreg & 1, k);
     if ((this.state.sreg & 1) === 0) {
-      console.log('branching');
+      this.ilog('branching');
       this.state.pc += k * 2 + 2;
     } else {
-      console.log('not branching');
+      this.ilog('not branching');
       this.state.pc += 2;
     }
   }
@@ -415,7 +415,7 @@ class AvrInterp {
     const r = (opcode[0] & 0xf) | (opcode[0] >> 5 & 0x10);
     const c = this.state.sreg & 1;
     const v = (this.state.reg[d] - this.state.reg[r] - c) & 0xff;
-    console.log(`cpc ${this.state.reg[d]} - ${this.state.reg[r]} - ${c} = ${v}`);
+    this.ilog(`cpc ${this.state.reg[d]} - ${this.state.reg[r]} - ${c} = ${v}`);
     this.state.sreg = 0;
     // TODO: H=set if there was a borrow from bit 3; cleared otherwise
     // TODO: S=for signed tests
@@ -426,7 +426,6 @@ class AvrInterp {
     this.state.sreg |= (v === 0) ? 2 : 0;
     // carry
     this.state.sreg |= this.abs_8(this.state.reg[r] + c) > this.abs_8(this.state.reg[d]) ? 1 : 0;
-    console.log('sreg', this.state.sreg);
     this.state.pc += 2; 
   }
 
@@ -434,10 +433,6 @@ class AvrInterp {
     const d = opcode[0] >> 4 & 0x1f;
     const r = (opcode[0] & 0xf) | (opcode[0] >> 5 & 0x10);
     const v = (this.state.reg[d] - this.state.reg[r]) & 0xff;
-    //console.log('$$$cp', this.state.reg[d], this.state.reg[r], v);
-
-    console.log(`cp ${this.state.reg[d]} - ${this.state.reg[r]} = ${v}`);
-
     this.state.sreg = 0;
     // TODO: H=set if there was a borrow from bit 3; cleared otherwise
     // TODO: S=for signed tests
@@ -448,7 +443,6 @@ class AvrInterp {
     this.state.sreg |= (v === 0) ? 0x2 : 0x0;
     // carry
     this.state.sreg |= this.abs_8(this.state.reg[r]) > this.abs_8(this.state.reg[d]) ? 1 : 0;
-    console.log('sreg', this.state.sreg);
     this.state.pc += 2;
   }
 
@@ -482,7 +476,7 @@ class AvrInterp {
   op_lddy_1 (opcode) {
     const d = opcode[0] >> 4 & 0x1f;
     const y = this.read_y();
-    console.log(`lddy_1 d=${d} y=${y}`);
+    this.ilog(`lddy_1 d=${d} y=${y}`);
     this.state.reg[d] = this.data[y];
     this.state.pc += 2;
   }
@@ -490,7 +484,7 @@ class AvrInterp {
   op_lddy_2 (opcode) {
     const d = opcode[0] >> 4 & 0x1f;
     const y = this.read_y();    
-    console.log(`lddy_2 d=${d} y=${y}`);
+    this.ilog(`lddy_2 d=${d} y=${y}`);
     this.state.reg[d] = this.data[y];
     this.write_y(y + 1);
     this.state.pc += 2;
@@ -499,7 +493,7 @@ class AvrInterp {
   op_lddy_3 (opcode) {
     const d = opcode[0] >> 4 & 0x1f;
     const y = this.read_y();    
-    console.log(`lddy_3 d=${d} y=${y}`);
+    this.ilog(`lddy_3 d=${d} y=${y}`);
     this.state.reg[d] = this.data[y - 1];
     this.write_y(y - 1);
     this.state.pc += 2;
@@ -511,8 +505,7 @@ class AvrInterp {
       (opcode[0] & 0x7) | (opcode[0] >> 7 & 0x18) | (opcode[0] >> 8 & 0x20) 
     );
     const y = this.read_y();
-    console.log(`lddy_4 d=${d} q=${q} y=${y}`);
-    console.log(`lddy_4 r${d}<${this.state.reg[d]}> = data[y<${y}> + q<${q}>]<${this.data[y+q]}>`);
+    this.ilog(`lddy_4 r${d}<${this.state.reg[d]}> = data[y<${y}> + q<${q}>]<${this.data[y+q]}>`);
     this.state.reg[d] = this.data[y + q];
     this.state.pc += 2;
   }
@@ -520,14 +513,18 @@ class AvrInterp {
   op_sty_1 (opcode) {
     const r = opcode[0] >> 4 & 0x1f;
     const y = this.read_y();
-    console.log(`std_1 r=${r} y=${y}`);
+    this.ilog(`std_1 r=${r} y=${y}`);
     this.data[y] = this.state.reg[r];
+  }
+
+  ilog () {
+    console.log.apply(console, arguments);
   }
 
   op_sty_2 (opcode) {
     const r = opcode[0] >> 4 & 0x1f;
     const y = this.read_y();
-    console.log(`std_2 r=${r} y=${y}++`);
+    this.ilog(`std_2 r=${r} y=${y}++`);
     this.data[y] = this.state.reg[r];
     this.write_y(y + 1);
   }
@@ -535,7 +532,7 @@ class AvrInterp {
   op_sty_3 (opcode) {
     const r = opcode[0] >> 4 & 0x1f;
     const y = this.read_y();
-    console.log(`std_3 r=${r} y=--${y}`);
+    this.ilog(`std_3 r=${r} y=--${y}`);
     this.data[y - 1] = this.state.reg[r];
     this.write_y(y - 1);
   }
@@ -588,7 +585,7 @@ class AvrInterp {
       (opcode[0] & 0x7) | (opcode[0] >> 7 & 0x18) | (opcode[0] >> 8 & 0x20) 
     );
     const y = this.read_y();
-    console.log(`std_4 data[y<${y}> + q<${q}>] = r${r}<${this.state.reg[r]}>`);
+    this.ilog(`std_4 data[y<${y}> + q<${q}>] = r${r}<${this.state.reg[r]}>`);
     this.data[y + q] = this.state.reg[r];
     this.state.pc += 2;
   }
@@ -606,11 +603,11 @@ class AvrInterp {
         return this.state.sreg;
       case 0x3e:
         // high stack pointer
-        console.log('read high stack pointer', (this.state.sp >> 8) & 0xff);
+        this.ilog('read high stack pointer', (this.state.sp >> 8) & 0xff);
         return (this.state.sp >> 8) & 0xff;
       case 0x3d:
         // low stack pointer
-        console.log('read low stack pointer', this.state.sp & 0xff);
+        this.ilog('read low stack pointer', this.state.sp & 0xff);
         return this.state.sp & 0xff;
     }
     throw new Error();
@@ -649,11 +646,11 @@ class AvrInterp {
         return;
       case 0x3e:
         this.state.sp = (v << 8) | (this.state.sp & 0xff);
-        console.log(`write stack high with ${v} to be ${this.state.sp.toString(16)}`);
+        this.ilog(`write stack high with ${v} to be ${this.state.sp.toString(16)}`);
         return;
       case 0x3d:
         this.state.sp = (this.state.sp & 0xff00) | v;
-        console.log(`write stack low with ${v} to be ${this.state.sp.toString(16)}`);
+        this.ilog(`write stack low with ${v} to be ${this.state.sp.toString(16)}`);
         return;
     }
     throw new Error();
@@ -664,7 +661,7 @@ class AvrInterp {
     const d = (opcode[0] >> 4 & 0xf) + 16;
     const v = this.state.reg[d];
     const nv = (this.state.reg[d] - k) & 0xff;
-    console.log(`subi r${d}<${v}> - k<${k}> = ${nv}`);
+    this.ilog(`subi r${d}<${v}> - k<${k}> = ${nv}`);
     this.state.sreg &= 0xff - (4 + 2 + 1);
     this.state.sreg |= (nv & 0x80) ? 4 : 0;
     this.state.sreg |= (nv === 0) ? 2 : 0;
@@ -676,7 +673,7 @@ class AvrInterp {
   op_rcall (opcode) {
     let k = opcode[0] & 0x7ff;
     const spc = this.state.pc + 2;
-    console.log('rcall', k, spc);
+    this.ilog('rcall', k, spc);
     this.data[this.state.sp--] = spc >> 8;
     this.data[this.state.sp--] = spc & 0xff;
     if (k & 0x800 == 0x800) {
@@ -688,7 +685,7 @@ class AvrInterp {
   op_ldi (opcode) {
     const k = (opcode[0] >> 4 & 0xf0) | (opcode[0] & 0xf);
     const d = (opcode[0] >> 4 & 0xf) + 16;
-    console.log(`ldi r${d} = ${k}`);
+    this.ilog(`ldi r${d} = ${k}`);
     this.state.reg[d] = k;
     this.state.pc += 2;
   }
@@ -696,7 +693,7 @@ class AvrInterp {
   op_out (opcode) {
     const a = (opcode[0] >> 5 & 0x30) | (opcode[0] & 0xf);
     const r = opcode[0] >> 4 & 0x1f;
-    console.log('out', a, r);
+    this.ilog('out', a, r);
     this.io_write(a, this.state.reg[r]);
     this.state.pc += 2;
   }
@@ -704,7 +701,7 @@ class AvrInterp {
   op_in (opcode) {
     const d = opcode[0] >> 4 & 0x1f;
     const a = (opcode[0] >> 9 & 0x3) << 4 | (opcode[0] & 0xf);
-    console.log('in', d, a);
+    this.ilog('in', d, a);
     this.state.reg[d] = this.io_read(a);
     this.state.pc += 2;
   }
@@ -712,21 +709,21 @@ class AvrInterp {
   op_eor (opcode) {
     const d = (opcode[0] >> 4) & 0x1f;
     const r = ((opcode[0] >> 5) & 0x10) | (opcode[0] & 0xf);
-    console.log('eor', d, r);
+    this.ilog('eor', d, r);
     this.state.reg[d] = (this.state.reg[d] ^ this.state.reg[r]) & 0xff;
     this.state.pc += 2;
   }
 
   op_push (opcode) {
     const d = opcode[0] >> 4 & 0x1f;
-    console.log('push', this.state.sp, d);
+    this.ilog('push', this.state.sp, d);
     this.data[this.state.sp--] = this.state.reg[d];
     this.state.pc += 2;
   }
 
   op_pop (opcode) {
     const d = opcode[0] >> 4 & 0x1f;
-    console.log('pop', d);
+    this.ilog('pop', d);
     this.state.reg[d] = this.data[++this.state.sp];
     this.state.pc += 2;
   }
@@ -740,19 +737,19 @@ class AvrInterp {
       line.push(ch.length == 2 ? ch : '0' + ch);
     }
 
-    console.log(`STACK[${sp}]: ${line.join('')}`);
+    this.ilog(`STACK[${sp}]: ${line.join('')}`);
   }
 
   execute_single () {
     const opcode = this.ip_read32();
     
-    console.log(`[${this.state.pc.toString(16)}] opcode`, opcode);
+    this.ilog(`[${this.state.pc.toString(16)}] opcode`, opcode);
 
     for (let entry of this.om) {
       if ((opcode[0] & entry[1]) === entry[0]) {
         entry[2](opcode);
         this.print_stack_line();
-        console.log('SREG', this.state.sreg);
+        this.ilog('SREG', this.state.sreg);
         return;
       }
     }
@@ -763,7 +760,3 @@ class AvrInterp {
 
 module.exports.AvrInterp = AvrInterp;
 module.exports.AvrState = AvrState;
-
-/*
-//console.log(i.signed_8(0xff));
-*/
