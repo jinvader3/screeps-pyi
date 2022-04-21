@@ -11,13 +11,13 @@ const rl = readline.createInterface({
 
 const code = fs.readFileSync('./dist/avrtest1_code');
 const ro_data = fs.readFileSync('./dist/avrtest1_rodata');
-const data = new Uint8Array(0xffff);
+const data = new Uint8Array(1024);
 
 for (let x = 0; x < ro_data.length; ++x) {
   data[x] = ro_data[x];
 }
       
-const i = new AvrInterp(code, data, new AvrState());
+const i = new AvrInterp(code, data, new AvrState(0, 0x3f0));
 
 i.register_io_write(6, v => {
   throw new Error('Debug Point Reached');

@@ -1,50 +1,36 @@
-typedef unsigned char uint8_t;
-typedef unsigned short uint16_t;
-typedef unsigned long uint32_t;
+#include "game.h"
 
-#define HEAPSIZE  32
-#define HEAPSEGSZ 8
+int __attribute__((visibility("default"))) __attribute__(( section(".main") )) start (Room room, Creep creep) {
+  Controller controller = room.GetController();
+  Source source = room.GetSourceByIndex(0);
 
-uint8_t g_heap_bm[HEAPSIZE / HEAPSEGSZ];
-uint8_t g_heap[HEAPSIZE];
+  uint8_t mode = 0;
 
-void* malloc (unsigned int sz);
-void print_utf16_hex (uint16_t v);
-void print_utf8_hex (uint8_t v);
-void print_eol ();
-void print_string (const char *s);
-void malloc_init ();
+  while (true) {
+    uint16_t eused = creep.GetUsedCapacity(ResourceType::ENERGY);
+    uint16_t efree = creep.GetFreeCapacity(ResourceType::ENERGY);
+    
+    if (eused == 0 && mode == 1) {
+      mode = 0;
+    } else if (efree == 0 && mode == 0) {
+      mode = 1;
+    }
+    
+    if (mode == 0) {
+      // harvest
+      if (creep.Harvest(source) != GameResult::OK) {
+        creep.MoveTo(source);
+      }
+    } else {
+      // upgrade
+      if (creep.Upgrade(controller) != GameResult::OK) {
+        creep.MoveTo(controller);
+      }
+    }
 
-class Game {
-  private:
-  Game();
-  ~Game();
-  public:
-  static void test1();
-};
-
-int __attribute__(( section(".main") )) main () {
-  uint8_t id;
-
-  __asm__("mov %0, r0" : "=r" (id));
-
-  print_utf8_hex(id);
-
-  Game::test1(); 
-
-  for (;;);
+    Game::WaitNextTick();
+  }
   return 0;
-}
-
-Game::Game() {
-  __asm__("out 6, 0");
-}
-
-Game::~Game() {
-}
-
-void Game::test1() {
-  __asm__("out 6, 0");
 }
 
 void print_char (uint16_t v) {
@@ -82,6 +68,12 @@ void print_eol () {
 void malloc_init () {
   for (uint16_t x = 0; x < HEAPSIZE / HEAPSEGSZ; ++x) {
     g_heap_bm[x] = 0;
+  }
+}
+
+void memset (void *ptr, unsigned int sz, unsigned char value) {
+  for (unsigned int x = 0; x < sz; ++x) {
+    ((uint8_t*)((unsigned int)ptr + x))[0] = value;
   }
 }
 

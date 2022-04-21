@@ -1,7 +1,7 @@
 class AvrState {
-  constructor () {
-    this.pc = 0;
-    this.sp = 0xfff0;
+  constructor (pc, sp) {
+    this.pc = pc;
+    this.sp = sp;
     this.reg = new Uint8Array(32);
     this.sreg = 0;
   }
@@ -66,6 +66,10 @@ class AvrInterp {
       [0x9405, 0xfe0f, this.op_asr.bind(this)],
       [0x0800, 0xfc00, this.op_sbc.bind(this)],
     ];
+  }
+
+  ilog () {
+    console.log.apply(console, arguments);
   }
 
   op_sbc (opcode) {
@@ -204,6 +208,7 @@ class AvrInterp {
     this.state.reg[d] = this.data[z + q];
     this.state.pc += 2;
   }
+
   op_sbiw (opcode) {
     const k = (opcode[0] & 0xf) | (opcode[0] >> 2 & 0x30);
     const d = opcode[0] >> 4 & 0x3;
@@ -515,10 +520,6 @@ class AvrInterp {
     const y = this.read_y();
     this.ilog(`std_1 r=${r} y=${y}`);
     this.data[y] = this.state.reg[r];
-  }
-
-  ilog () {
-    console.log.apply(console, arguments);
   }
 
   op_sty_2 (opcode) {

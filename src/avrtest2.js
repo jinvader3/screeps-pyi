@@ -2,7 +2,7 @@ const { AvrInterp, AvrState } = require('./avrinterp');
 const fs = require('fs');
 const code = fs.readFileSync('./dist/avrtest2_code');
 const data = new Uint8Array(0xffff);
-const i = new AvrInterp(code, data, new AvrState());
+const i = new AvrInterp(code, data, new AvrState(0, 0xf000));
 
 let test_passed = true;
 
