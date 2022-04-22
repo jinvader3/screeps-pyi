@@ -1,6 +1,20 @@
 #include "game.h"
+
+#define CMDBUFSZ (2 + 4 + 4 + 4)
+
+union cbuf {
+  uint8_t v8[CMDBUFSZ];
+  uint16_t v16[CMDBUFSZ / 2];
+};
+
+uint16_t g_cbuf_ndx;
+volatile cbuf g_cbuf;
+
 uint8_t g_heap_bm[HEAPSIZE / HEAPSEGSZ];
 uint8_t g_heap[HEAPSIZE];
+
+void IOReset() {
+}
 
 void IOWrite8(uint8_t value) {
   __asm__("out 0, %0" : : "r" (value));
@@ -35,77 +49,122 @@ Controller Room::GetController() {
     in <ControllerIdLowByte>
     in <ControllerIdHighByte>
   */
+  IOReset();
   IOWrite16(0);
   IOWrite16(this->name.id);
   IOExecute();
-  return Controller(IORead16());
+  IOReset();
+  return Controller(move(InteropId::New(IORead16())));
 }
 
-GameResult Creep::Harvest(GameObject gobj) {
+GameResult Creep::Harvest(GameObject &gobj) {
+  IOReset();
   IOWrite16(1);
   IOWrite16(gobj.id.id);
   IOExecute();
+  IOReset();
   return (GameResult)IORead16();
 }
 
 Source Room::GetSourceByIndex(uint8_t index) {
+  IOReset();
   IOWrite16(2);
-  IOWrite8(index);
+  IOWrite16(this->name.id);
+  IOWrite16(index);
   IOExecute();
-  return Source(IORead16());
+  IOReset();
+  return Source(InteropId::New(IORead16()));
 }
 
-GameResult Creep::Upgrade(GameObject gobj) {
+GameResult Creep::Upgrade(GameObject &gobj) {
+  IOReset();
   IOWrite16(3);
   IOWrite16(this->id.id);
   IOWrite16(gobj.id.id);
   IOExecute();
+  IOReset();
   return (GameResult)IORead16();
 }
 
-GameResult Creep::MoveTo(GameObject gobj) {
+GameResult Creep::MoveTo(GameObject &gobj) {
+  IOReset();
   IOWrite16(4);
   IOWrite16(this->id.id);
   IOWrite16(gobj.id.id);
   IOExecute();
+  IOReset();
   return (GameResult)IORead16();
 }
 
 uint16_t Creep::GetUsedCapacity(ResourceType rtype) {
+  IOReset();
+  __asm__("out 6, 6");
   IOWrite16(5);
   IOWrite16(this->id.id);
   IOWrite16((uint16_t)rtype);
   IOExecute();
+  IOReset();
   return IORead16();
 }
 
 uint16_t Creep::GetFreeCapacity(ResourceType rtype) {
+  IOReset();
   IOWrite16(6);
   IOWrite16(this->id.id);
   IOWrite16((uint16_t)rtype);
   IOExecute();
+  IOReset();
   return IORead16();
 }
 
 void Game::WaitNextTick() {
-  IOWrite16(5);
+  IOReset();
+  IOWrite16(7);
   IOExecute();
 }
 
-Controller::Controller(uint16_t id) : GameObject(id) { 
+Controller::Controller(InteropId &&id) : GameObject(move(id)) { 
 }
 
-Source::Source(uint16_t id) : GameObject(id) { 
+Source::Source(InteropId &&id) : GameObject(move(id)) { 
 }
 
-GameObject::GameObject(uint16_t id) : id(id) {
+GameObject::GameObject(InteropId &&id) : id(move(id)) {
 }
 
-ObjectId::ObjectId(uint16_t id) : InteropId(id) {
+InteropId::InteropId(uint16_t id): id(id) {
 }
 
-InteropId::InteropId(uint16_t id) {
-  this->id = id;
+InteropId InteropId::New(uint16_t id) {
+  return InteropId(id);
+}
+
+InteropId::InteropId(InteropId&& id) {
+  // Now, increment the reference host side.
+  host_inc_ref(id.id);
+  this->id = id.id;
+}
+
+InteropId InteropId::Copy() {
+  return move(*this);
+}
+
+InteropId::~InteropId() {
+  host_dec_ref(this->id);
+}
+
+void host_inc_ref (uint16_t id) {
+  IOReset();
+  IOWrite16(8);
+  IOWrite16(id);
+  IOExecute();  
+}
+
+void host_dec_ref (uint16_t id) {
+  IOReset();
+  IOWrite16(9);
+  IOWrite16(id);
+  IOExecute();  
 }
 
 void print_char (uint16_t v) {

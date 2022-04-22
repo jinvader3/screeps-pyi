@@ -16,6 +16,16 @@ void print_eol ();
 void print_string (const char *s);
 void malloc_init ();
 void memset (void *ptr, unsigned int sz, unsigned char value);
+void host_inc_ref (uint16_t id);
+void host_dec_ref (uint16_t id);
+
+template <class T> struct remove_reference { typedef T type; };
+template <class T> struct remove_reference<T&> { typedef T type; };
+template <class T> struct remove_reference<T&&> { typedef T type; };
+
+template <typename T> typename remove_reference<T>::type&& move(T&& arg) {
+  return static_cast<typename remove_reference<T&>::type&&>(arg);
+}
 
 class Game {
   private:
@@ -27,42 +37,40 @@ class Game {
   static void WaitNextTick();
 };
 
+class RoomId {
+  public:
+  uint16_t x;
+  uint16_t y;
+  RoomId(uint16_t x, uint16_t y);
+};
+
 class InteropId {
   private:
   InteropId();
-  public:
-  uint16_t id;
   InteropId(uint16_t id);
-};
-
-class ObjectId : public InteropId {
   public:
-  ObjectId(uint16_t id);
+  InteropId(InteropId &id) = delete;
+  uint16_t id;
+  static InteropId New(uint16_t id);
+  InteropId Copy();
+  InteropId(InteropId &&id);
+  ~InteropId();
 };
-
-/*
-  objectives
-    serialize CPU state
-    serialize CPU memory
-    serialize marshal mapping table
-      uint16_t --> object id
-      object_id --> uint16_t
-*/
 
 class GameObject {
   public:
-  ObjectId id;
-  GameObject(uint16_t id);
+  InteropId id;
+  GameObject(InteropId&& id);
 };
 
 class Controller : public GameObject {
   public:
-  Controller(uint16_t id);
+  Controller(InteropId&& id);
 };
 
 class Source : public GameObject {
   public:
-  Source(uint16_t id);
+  Source(InteropId&& id);
 };
 
 class Room {
@@ -87,11 +95,12 @@ class Creep : public GameObject {
   public:
   uint16_t GetUsedCapacity(ResourceType rtype);
   uint16_t GetFreeCapacity(ResourceType rtype);
-  GameResult Upgrade(GameObject object);
-  GameResult Harvest(GameObject object);
-  GameResult MoveTo(GameObject object);
+  GameResult Upgrade(GameObject& object);
+  GameResult Harvest(GameObject& object);
+  GameResult MoveTo(GameObject& object);
 };
 
+void IOReset();
 void IOWrite8(uint8_t value);
 uint8_t IORead8();
 void IOWrite16(uint16_t value);
