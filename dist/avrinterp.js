@@ -73,11 +73,25 @@ class AvrInterp {
       [0xf000, 0xfc07, this.op_brcs.bind(this)],    // T
       [0x9405, 0xfe0f, this.op_asr.bind(this)],
       [0x0800, 0xfc00, this.op_sbc.bind(this)],
+      [0x2800, 0xfc00, this.op_or.bind(this)],
     ];
   }
 
   ilog () {
     console.log.apply(console, arguments);
+  }
+
+  op_or (opcode) {
+    const r = (opcode[0] & 0xf) | (opcode[0] >> 5 & 0x10);
+    const d = opcode[0] >> 4 & 0x1f;
+    const v = this.state.reg[d];
+    const nv = v | this.state.reg[r];
+    this.ilog(`or r${d}<${v}> | r${r}<${this.state.reg[r]}> = r${d}<${nv}>`);
+    this.state.reg[d] = nv;
+    this.state.sreg &= 0xff - (8 + 4 + 2);
+    this.state.sreg |= (nv & 0x80) ? 4 : 0;
+    this.state.sreg |= (nv === 0) ? 2 : 0;
+    this.state.pc += 2;
   }
 
   op_sbc (opcode) {
